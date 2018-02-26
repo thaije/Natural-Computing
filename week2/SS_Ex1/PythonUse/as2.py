@@ -24,7 +24,7 @@ def stats(x0,x1):
 
 def negsel(testfile, n=10,r=4):
     WorkDir = os.getcwd()
-    javaDir = WorkDir + "\\negative-selection"
+    javaDir = WorkDir + "/negative-selection"
     # command = "java -jar negsel2.jar -self english.train -n 10 -r 4 -c -l < english.test > test.txt 2>&1"
     command = "java -jar negsel2.jar -self english.train -n " + str(n) + " -r " + str(r) + " -c -l < " + testfile + " > test.txt 2>&1"
     os.chdir(javaDir)
@@ -118,9 +118,9 @@ plt.ylabel("AUC")
 plt.legend(langs)
 
 
+plt.show()
 
 # AUC testing
 
 x0 = negsel(test_eng)
 x1 = negsel(test_tag)
-

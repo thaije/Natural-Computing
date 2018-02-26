@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 from matplotlib import pyplot as plt
 from subprocess import run, PIPE
 import os
@@ -21,7 +21,7 @@ def negsel(test_file, r):
 	array_like
 		array containing log number of pattern matches
 	'''
-	args = ['java', '-jar', 'negsel2.jar', '-self', 'english.train', '-n', '10', '-r', str(r), '-c', '-l']	
+	args = ['java', '-jar', 'negsel2.jar', '-self', 'english.train', '-n', '10', '-r', str(r), '-c', '-l']
 	with open(test_file, 'r') as f:
 		lines = f.read()
 		p = run(args, stdout=PIPE, input=lines, encoding='ascii')
@@ -45,7 +45,7 @@ def cal_roc(scores_true, scores_false):
 	array_like
 		sensitivity
 	array_like
-		specificity	
+		specificity
 	'''
 	scores = np.concatenate([scores_true,scores_false])
 	uniques = np.unique(scores)
@@ -62,7 +62,7 @@ def calc_auc(sensitivity, specificity):
 	'''
 	Calculate area under the curve
 	using trapezoidal approximation for the integral
-	
+
 	Parameters:
 	--------
 	sensitivity: array_like
@@ -97,7 +97,7 @@ plt.ylim([0,1.01])
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('ROC Curve')
-
+plt.show()
 
 ## Perform ROC analysis for different values of r
 
@@ -141,9 +141,3 @@ for lang in os.listdir('lang/'):
 	sens, spec = cal_roc(res_eng,res_lang)
 	auc = calc_auc(sens,spec)
 	print('{:^20}|{:^8.4}'.format(lang[:-4],auc))
-
-
-plt.show()
-
-	
-
