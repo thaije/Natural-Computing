@@ -1,8 +1,9 @@
 import numpy as np 
 from matplotlib import pyplot as plt
 from subprocess import run, PIPE
-import pdb
+import os
 
+## REQUIRES PYTHON3
 
 def negsel(test_file, r):
 	'''
@@ -79,8 +80,9 @@ def calc_auc(sensitivity, specificity):
 	return -np.trapz(sensitivity,1-specificity)
 
 #perform negsel on english and tagalog test set for english training data
-res_eng = negsel('english.test', 4)
-res_tag = negsel('tagalog.test', 4)
+r = 4
+res_eng = negsel('english.test', r)
+res_tag = negsel('tagalog.test', r)
 
 #Perform ROC analysis for r = 4
 sens, spec = cal_roc(res_eng,res_tag)
@@ -126,6 +128,20 @@ plt.plot(np.arange(1,10),aucs)
 plt.xlabel('r')
 plt.ylabel('AUC')
 plt.title('AUC for differen values of r')
+
+## Perform negative selection for different distractor languages
+
+#best r
+r = 3
+res_eng = negsel('english.test', r)
+print('{:^20}|{:^8}'.format('Language', 'AUC'))
+print('--------------------|--------')
+for lang in os.listdir('lang/'):
+	res_lang = negsel('lang/' + lang, r)
+	sens, spec = cal_roc(res_eng,res_lang)
+	auc = calc_auc(sens,spec)
+	print('{:^20}|{:^8.4}'.format(lang[:-4],auc))
+
 
 plt.show()
 
