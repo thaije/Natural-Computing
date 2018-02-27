@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 from matplotlib import pyplot as plt
 from subprocess import run, PIPE
 import os
@@ -12,10 +12,10 @@ import pdb
 def chunk(data, length, overlap=False):
 	'''
 	Function to split data into chunks
-	:param (array_like) 	data 
+	:param (array_like) 	data
 	:param (int) length 	length of chunks
 	:param (bool) overlap 	whether chunks should overlap or not
-	:return (array_like) chunked data 
+	:return (array_like) chunked data
 	'''
 	chunk_data = []
 	step = 1 if overlap else length
@@ -25,6 +25,7 @@ def chunk(data, length, overlap=False):
 	return chunk_data
 
 
+print ("Chunking data..")
 ## If training data is not yet chunked create new file with chunked data
 CHUNK_LEN = 10
 
@@ -37,16 +38,18 @@ if not CHUNK_PATH.exists():
 	with open(TRAIN_PATH / DATA, 'r') as f:
 		syscalls = f.read()
 		syscalls = syscalls.replace('\n','')
-	
+
 	chunk_data = chunk(syscalls,CHUNK_LEN)
 
 	with open(CHUNK_PATH, 'w') as f:
 		f.writelines("%s\n" % c for c in chunk_data)
 
+print ("done")
+
 ## Apply to test data
 r = 4
 TEST_PATH = Path('syscalls/' + SUBFOLDER)
-TEST_CASES = 1
+TEST_CASES = 3
 for i in range(1,TEST_CASES+1):
 	#read data
 	case_data = SUBFOLDER + '.' + str(i) + '.test'
@@ -57,14 +60,14 @@ for i in range(1,TEST_CASES+1):
 	case_labels = SUBFOLDER + '.' + str(i) + '.labels'
 	with open(TEST_PATH / case_labels, 'r') as f:
 		labels = f.readlines()
-	labels = np.array(labels).astype(bool)	
+	labels = np.array(labels).astype(bool)
 
 
 	def call_negsel(data):
 		'''
 		Helper function to call negative selection
 		:param data
-		:return scores 
+		:return scores
 		'''
 		test_data = []
 		lens = []
@@ -74,9 +77,9 @@ for i in range(1,TEST_CASES+1):
 			lens.append(len(chunks))
 			test_data.extend(chunks)
 
-		#apply negative selection	
+		#apply negative selection
 		res = negsel.negsel(CHUNK_PATH, test_data, CHUNK_LEN, r)
-		
+
 		#take mean score per line in test_data
 		lens = np.array(lens)
 		scores = []
@@ -86,10 +89,12 @@ for i in range(1,TEST_CASES+1):
 			start += l
 
 		return scores
-	
+
+	print("\nApplying negative selection to case " , i , "...")
 	## Apply negative selection to positive and negative samples separately
 	pos_scores = call_negsel(syscalls[labels])
 	neg_scores = call_negsel(syscalls[~labels])
+	print("done")
 
 	sens, spec = negsel.cal_roc(neg_scores, pos_scores)
 	auc = negsel.calc_auc(sens,spec)
