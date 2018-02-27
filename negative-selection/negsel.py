@@ -5,14 +5,18 @@ import os
 
 ## REQUIRES PYTHON3
 
-def negsel(test_file, r):
+def negsel(train_file, test_file, n, r):
 	'''
 	Performs negative selection algorithm by calling negsel2.jar
 
 	Parameters:
 	--------
-	test_file: str
-		filename of file containing test data
+	train_file: str
+		filename of training data
+	test_file: str or array_like
+		filename of file containing test data or test data
+	n: int
+		length of chunks	
 	r: int
 		max len of contingouos substring matches
 
@@ -21,11 +25,16 @@ def negsel(test_file, r):
 	array_like
 		array containing log number of pattern matches
 	'''
-	args = ['java', '-jar', 'negsel2.jar', '-self', 'english.train', '-n', '10', '-r', str(r), '-c', '-l']	
-	with open(test_file, 'r') as f:
-		lines = f.read()
-		p = run(args, stdout=PIPE, input=lines, encoding='ascii')
-		res = np.fromstring(p.stdout.replace('\n',''), dtype=float, sep=' ')
+	args = ['java', '-jar', 'negsel2.jar', '-self', train_file, '-n', str(n), '-r', str(r), '-c', '-l']	
+	
+	if isinstance(test_file, str):
+		with open(test_file, 'r') as f:
+			lines = f.read()
+	else:
+		lines = '\n'.join(test_file)		
+
+	p = run(args, stdout=PIPE, input=lines, encoding='ascii')
+	res = np.fromstring(p.stdout.replace('\n',''), dtype=float, sep=' ')
 	return res
 
 
@@ -79,71 +88,73 @@ def calc_auc(sensitivity, specificity):
 	#sorted in descending order
 	return -np.trapz(sensitivity,1-specificity)
 
-#perform negsel on english and tagalog test set for english training data
-r = 4
-res_eng = negsel('english.test', r)
-res_tag = negsel('tagalog.test', r)
 
-#Perform ROC analysis for r = 4
-sens, spec = cal_roc(res_eng,res_tag)
-auc = calc_auc(sens,spec)
-print('AUC for r = 4 is {}'.format(auc))
+if __name__=='__main__':
+	#perform negsel on english and tagalog test set for english training data
+	r = 4
+	res_eng = negsel('english.train', 'english.test', 10, r)
+	res_tag = negsel('english.train', 'tagalog.test', 10, r)
 
-plt.figure()
-plt.plot(1-spec,sens)
-plt.plot(np.arange(0,1.1,0.1),np.arange(0,1.1,0.1), color='orange', linestyle='--')
-plt.xlim([0,1])
-plt.ylim([0,1.01])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('ROC Curve')
-
-
-## Perform ROC analysis for different values of r
-
-#Plot ROC curves
-plt.figure()
-plt.plot(np.arange(0,1.1,0.1),np.arange(0,1.1,0.1), color='orange', linestyle='--')
-plt.xlim([0,1])
-plt.ylim([0,1.01])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('ROC Curves given r')
-
-
-aucs = []
-for r in range(1,10):
-	res_eng = negsel('english.test', r)
-	res_tag = negsel('tagalog.test', r)
-
+	#Perform ROC analysis for r = 4
 	sens, spec = cal_roc(res_eng,res_tag)
-	plt.plot(1-spec,sens, label='r = {}'.format(r))
-	aucs.append(calc_auc(sens,spec))
-
-plt.legend()
-
-#Plot AUC against r
-plt.figure()
-plt.plot(np.arange(1,10),aucs)
-plt.xlabel('r')
-plt.ylabel('AUC')
-plt.title('AUC for differen values of r')
-
-## Perform negative selection for different distractor languages
-
-#best r
-r = 3
-res_eng = negsel('english.test', r)
-print('{:^20}|{:^8}'.format('Language', 'AUC'))
-print('--------------------|--------')
-for lang in os.listdir('lang/'):
-	res_lang = negsel('lang/' + lang, r)
-	sens, spec = cal_roc(res_eng,res_lang)
 	auc = calc_auc(sens,spec)
-	print('{:^20}|{:^8.4}'.format(lang[:-4],auc))
+	print('AUC for r = 4 is {}'.format(auc))
+
+	plt.figure()
+	plt.plot(1-spec,sens)
+	plt.plot(np.arange(0,1.1,0.1),np.arange(0,1.1,0.1), color='orange', linestyle='--')
+	plt.xlim([0,1])
+	plt.ylim([0,1.01])
+	plt.xlabel('False Positive Rate')
+	plt.ylabel('True Positive Rate')
+	plt.title('ROC Curve')
 
 
-plt.show()
+	## Perform ROC analysis for different values of r
+
+	#Plot ROC curves
+	plt.figure()
+	plt.plot(np.arange(0,1.1,0.1),np.arange(0,1.1,0.1), color='orange', linestyle='--')
+	plt.xlim([0,1])
+	plt.ylim([0,1.01])
+	plt.xlabel('False Positive Rate')
+	plt.ylabel('True Positive Rate')
+	plt.title('ROC Curves given r')
+
+
+	aucs = []
+	for r in range(1,10):
+		res_eng = negsel('english.train', 'english.test', 10, r)
+		res_tag = negsel('english.train', 'tagalog.test', 10, r)
+
+		sens, spec = cal_roc(res_eng,res_tag)
+		plt.plot(1-spec,sens, label='r = {}'.format(r))
+		aucs.append(calc_auc(sens,spec))
+
+	plt.legend()
+
+	#Plot AUC against r
+	plt.figure()
+	plt.plot(np.arange(1,10),aucs)
+	plt.xlabel('r')
+	plt.ylabel('AUC')
+	plt.title('AUC for differen values of r')
+
+	## Perform negative selection for different distractor languages
+
+	#best r
+	r = 3
+	res_eng = negsel('english.train', 'english.test', 10, r)
+	print('{:^20}|{:^8}'.format('Language', 'AUC'))
+	print('--------------------|--------')
+	for lang in os.listdir('lang/'):
+		res_lang = negsel('english.train', 'lang/' + lang, 10, r)
+		sens, spec = cal_roc(res_eng,res_lang)
+		auc = calc_auc(sens,spec)
+		print('{:^20}|{:^8.4}'.format(lang[:-4],auc))
+
+
+	plt.show()
 
 	
 
