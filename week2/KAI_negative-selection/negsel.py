@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 from matplotlib import pyplot as plt
 from subprocess import run, PIPE
 import os
@@ -54,7 +54,7 @@ def cal_roc(scores_true, scores_false):
 	array_like
 		sensitivity
 	array_like
-		specificity	
+		specificity
 	'''
 	scores = np.concatenate([scores_true,scores_false])
 	uniques = np.unique(scores)
@@ -71,7 +71,7 @@ def calc_auc(sensitivity, specificity):
 	'''
 	Calculate area under the curve
 	using trapezoidal approximation for the integral
-	
+
 	Parameters:
 	--------
 	sensitivity: array_like
@@ -155,6 +155,4 @@ if __name__=='__main__':
 
 
 	plt.show()
-
-	
 
