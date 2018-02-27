@@ -46,7 +46,7 @@ if not CHUNK_PATH.exists():
 ## Apply to test data
 r = 4
 TEST_PATH = Path('syscalls/' + SUBFOLDER)
-TEST_CASES = 1
+TEST_CASES = 3
 for i in range(1,TEST_CASES+1):
 	#read data
 	case_data = SUBFOLDER + '.' + str(i) + '.test'
