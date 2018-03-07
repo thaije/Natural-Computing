@@ -138,7 +138,7 @@ def PSO(nClusters, nParticles, inertia, acc_c1, acc_c2, maxIter, initPersonalBes
 if __name__ == '__main__':
     # constants
     nClusters = 2
-    nParticles = 30
+    nParticles = 10
     inertia_w = 0.72
     acceleration_c1= 1.49
     acceleration_c2 = 1.49
@@ -148,3 +148,10 @@ if __name__ == '__main__':
     dataFile = "data/artificial.data"
 
     PSO(nClusters, nParticles, inertia_w, acceleration_c1, acceleration_c2, maxIter, initPersonalBest, initSocialbest, dataFile)
+
+    # Artificial problem 1
+    # generate uniform artificial dataset
+    # Nd = 2 # Number of dimensions
+    # data = np.random.uniform(low=-1, high=1, size=(400,Nd)) # Random data
+    # data = np.insert(data, 2, -1, axis=1)
+    # np.savetxt('data/artificial.data', data, fmt='%.4f', delimiter=' ')
