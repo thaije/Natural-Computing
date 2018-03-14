@@ -166,14 +166,27 @@ Nc = range(2,10)
 
 PROBLEM = 1 # 0 for Iris data and 1 for Artificial problem
 
-if PROBLEM ==1: # if problem is artificial data 1
+if PROBLEM == 1: # if problem is artificial data 1
     # Artificial problem 1
     Nd = 2 # Number of dimensions
-    data = np.random.uniform(low=-1, high=1, size=(400,Nd)) # Random data
+    data = np.random.uniform(low=-1, high=1, size=(400, Nd)) # Random data
+
+    ############################################
+    # # add class generated from formula as extra dimension
+    # Nd += 1
+    # newD = np.zeros((len(data), Nd))
+    # for i in range(len(data)):
+    #     val = 0.0
+    #     # execute formula to determine if value is 1 or 0
+    #     if (data[i][0] >= 0.7 or data[i][0] <= 0.3) and (data[i][1] >= -0.2 - data[i][0]):
+    #         val = 1.0
+    #     newD[i] = np.insert(data[i], 2, val)
+    # data = newD
+
     bounds = [-1, 1]
     Nc = range(2,10) # Try clusters 2 to 10 - like paper
     n_simulations = 1 # More takes too long
-    besties = np.zeros((3,len(Nc), n_simulations))
+    besties = np.zeros((3, len(Nc), n_simulations))
 
 if PROBLEM == 0: # If problem is Iris data
     # Iris data
@@ -220,4 +233,4 @@ if PROBLEM ==0:
     plt.title("Minimization performance on Iris data using 3 clusters")
     plt.tight_layout()
 
-
+plt.show()

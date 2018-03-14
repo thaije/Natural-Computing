@@ -119,7 +119,7 @@ def PSO(nClusters, nParticles, inertia, acc_c1, acc_c2, maxIter, initPersonalBes
 
         # update new social best (best of all particles)
         swarm.updateSocialBest()
-        print "Iteration %s with best particle fitness %s" % (t, swarm.socialBest.fit)
+        print ("Iteration %s with best particle fitness %s" % (t, swarm.socialBest.fit) )
 
         # update velocities and positions of the particles
         swarm.updatePositions(inertia, acc_c1, acc_c2, x)
@@ -137,7 +137,7 @@ def PSO(nClusters, nParticles, inertia, acc_c1, acc_c2, maxIter, initPersonalBes
 
 if __name__ == '__main__':
     # constants
-    nClusters = 2
+    nClusters = 3
     nParticles = 10
     inertia_w = 0.72
     acceleration_c1= 1.49
@@ -151,7 +151,16 @@ if __name__ == '__main__':
 
     # Artificial problem 1
     # generate uniform artificial dataset
-    # Nd = 2 # Number of dimensions
-    # data = np.random.uniform(low=-1, high=1, size=(400,Nd)) # Random data
-    # data = np.insert(data, 2, -1, axis=1)
-    # np.savetxt('data/artificial.data', data, fmt='%.4f', delimiter=' ')
+    Nd = 2 # Number of dimensions
+    data = np.random.uniform(low=-1, high=1, size=(400,Nd)) # Random data
+    newD = np.zeros((len(data), 4))
+
+    for i in range(len(data)):
+        val = 0
+        if (data[i][0] >= 0.7 or data[i][0] <= 0.3) and (data[i][1] >= -0.2 - data[i][0]):
+            val = 1
+        item = np.insert(data[i], 2, val)
+        item = np.insert(item, 3, -1)
+        newD[i] = item
+    # print (newD)
+    # np.savetxt('data/artificial.data', newD, fmt='%.4f', delimiter=' ')
