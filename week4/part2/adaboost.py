@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -19,19 +19,21 @@ X["Ticket"].replace(['A', 'P', 'S', 'C', 'W', 'F', 'L', '1','2','3','4','5','6',
 
 X["Age"].fillna(X.Age.mean(), inplace=True)
 
-# Training the RandomForest
+# Training the AdaBoostClassifier
 numeric_variables = list(X.dtypes[X.dtypes!= 'object'].index) # Take only numerical variables
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
-forest = RandomForestClassifier(n_estimators=200, criterion='gini')
-forest.fit(X_train[numeric_variables], y_train)
 
-acc = accuracy_score(y_test, forest.predict(X_test[numeric_variables]))
+model = AdaBoostClassifier(n_estimators=50, learning_rate=1)
+
+model.fit(X_train[numeric_variables], y_train)
+
+acc = accuracy_score(y_test, model.predict(X_test[numeric_variables]))
 print("Test accuracy:", str(acc))
 
 # Importances
-importances = forest.feature_importances_
-std = np.std([tree.feature_importances_ for tree in forest.estimators_],
+importances = model.feature_importances_
+std = np.std([tree.feature_importances_ for tree in model.estimators_],
              axis=0)
 indices = np.argsort(importances)[::-1]
 
@@ -44,7 +46,7 @@ for f in range(len(importances)):
     print(str(f+1) +". features:",features_rank[f],"| Importance:", str(importances[indices[f]]))
 
 
-# Plot the feature importance's of the forest
+# Plot the feature importance's of the AdaBoostClassifier
 plt.figure()
 plt.title("Feature importances")
 plt.bar(range(len(importances)), importances[indices],
