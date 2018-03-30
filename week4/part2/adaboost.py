@@ -24,33 +24,56 @@ numeric_variables = list(X.dtypes[X.dtypes!= 'object'].index) # Take only numeri
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 
-model = AdaBoostClassifier(n_estimators=50, learning_rate=1)
 
-model.fit(X_train[numeric_variables], y_train)
+n_estimators = [50, 100, 150, 200]
+learning_rates = np.arange(0.1, 1, .2)
 
-acc = accuracy_score(y_test, model.predict(X_test[numeric_variables]))
-print("Test accuracy:", str(acc))
+bestScore = 0
+bestModel = 0
+
+for learn_rate in learning_rates:
+
+    x = []
+    y = []
+    for n_est in n_estimators:
+        model = AdaBoostClassifier(n_estimators=n_est, learning_rate=learn_rate)
+        model.fit(X_train[numeric_variables], y_train)
+        acc = accuracy_score(y_test, model.predict(X_test[numeric_variables]))
+        print("Test accuracy %0.2f for n_est %d and learn_rate %0.2f" % (acc, n_est, learn_rate))
+
+        if acc > bestScore:
+            bestScore = acc
+            bestModel = model
+
+        x.append(n_est)
+        y.append(acc)
+
+    plt.plot(x, y, Label="learning_rate = " + str(round(learn_rate, 2)))
+
 
 # Importances
-importances = model.feature_importances_
-std = np.std([tree.feature_importances_ for tree in model.estimators_],
-             axis=0)
+importances = bestModel.feature_importances_
 indices = np.argsort(importances)[::-1]
 
 # Print the feature ranking
 features_rank = [numeric_variables[indices[i]] for i in range(len(importances))]
-
-print("Feature ranking:")
-
+print("Feature ranking of best model:")
 for f in range(len(importances)):
     print(str(f+1) +". features:",features_rank[f],"| Importance:", str(importances[indices[f]]))
 
 
+# plot the accuracies of the adaboost with different parameters
+plt.ylabel('Accuracy')
+plt.xlabel('n_estimators')
+plt.legend()
+plt.show()
+
+
 # Plot the feature importance's of the AdaBoostClassifier
 plt.figure()
-plt.title("Feature importances")
+plt.title("Feature importances for best model")
 plt.bar(range(len(importances)), importances[indices],
-       color="r", yerr=std[indices], align="center")
+       color="r", align="center")
 plt.xticks(range(len(importances)), features_rank, rotation='vertical')
 plt.xlim([-1, len(importances)])
 plt.show()
