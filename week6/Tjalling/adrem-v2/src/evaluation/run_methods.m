@@ -1,4 +1,4 @@
-function results = run_methods(data, methods, varargin)
+function results = run_methods(data, labeled_data_perc, varargin)
   % Run all (or some) method on all (or some) datasets.
   % Store results in output files, and/or on the screen.
   %
@@ -43,7 +43,7 @@ function results = run_methods(data, methods, varargin)
   
   % Defaults
 %   if nargin < 2, methods = all_methods(); end
-  if nargin < 2, methods = our_methods(); end
+  methods = our_methods();
   
   % assume data argument is always an cell array with the dataset and
   % features defined
@@ -137,7 +137,7 @@ function results = run_methods(data, methods, varargin)
         y_train = data.y{src}(train,:);
         y_test  = data.y{src}(~train,:);
       else
-        subset = rand(size(data.x{tgt},1),1) < 0.1;
+        subset = rand(size(data.x{tgt},1),1) < labeled_data_perc;
         x_train = [data.x{src}; data.x{tgt}(subset,:)];
         x_test  = data.x{tgt}(~subset,:);
         y_train = [data.y{src}; data.y{tgt}(subset,:)];
