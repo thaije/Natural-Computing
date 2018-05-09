@@ -12,4 +12,4 @@
 
 
 #### Run
-- run run_methods_test.m in matlab
+- run main.m in matlab
