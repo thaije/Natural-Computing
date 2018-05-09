@@ -3,6 +3,8 @@ addpath src/evaluation
 addpath src/comparison_methods
 addpath liblinear-2.20/matlab
 addpath libsvm/matlab
+addpath (genpath ('C:\Users\reactor\Desktop\ru\natcomp\Natural-Computing\week6\Tjalling\adrem-v2\libsvm'))
+addpath (genpath ('C:\Users\reactor\Desktop\ru\natcomp\Natural-Computing\week6\Tjalling\adrem-v2\liblinear'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 % First install libsvm and liblinear as described in Readme.md in /Tjalling
@@ -47,18 +49,18 @@ addpath libsvm/matlab
 % Do every experiment for 0.1-0.6 perc labeled tgt data, each experiment 5
 % times, and plot the results
 
-fprintf("Using surf features")
-plot_methods_repeated_labeled('surf');
+% fprintf("Using surf features")
+% plot_methods_repeated_labeled('surf');
 
-% fprintf("Using vgg features")
-% plot_methods_repeated_labeled('vgg');
+fprintf("Using vgg features")
+plot_methods_repeated_labeled('vgg');
 
 
 
 
 
 function plotted = plot_methods_repeated_labeled(features)
-    labeled_data_options = [0.1 0.2 0.3 0.4 0.5 0.6];
+    labeled_data_options = [0.1 0.2 0.4 0.6];
     adrem_accs = zeros(1, numel(labeled_data_options));
     adrem_stds = zeros(1, numel(labeled_data_options));
     coral_accs = zeros(1, numel(labeled_data_options));
@@ -70,8 +72,8 @@ function plotted = plot_methods_repeated_labeled(features)
         result = run_methods({'office-caltech-repeated', features}, labeled_data_options(i))
 
         mean_avg_accs = getfield(result, 'mean_avg_accs');
-        mean_std_accs = getfield(result, 'std_avg_accs'); % mean std of acc of different src-tgt sets
-    %     mean_std_accs = getfield(result, 'mean_std_accs'); % mean std of avg acc between iterations
+%         mean_std_accs = getfield(result, 'std_avg_accs'); % mean std of acc of different src-tgt sets
+        mean_std_accs = getfield(result, 'mean_std_accs'); % mean std of avg acc between iterations
 
         adrem_accs(i) = mean_avg_accs(1) * 100.0;
         adrem_stds(i) = mean_std_accs(1) * 100.0;
@@ -90,6 +92,7 @@ function plotted = plot_methods_repeated_labeled(features)
     legend('Ad-rem', 'Coral');
     [lgd, icons, plots, txt] = legend('show');
     plotted = 1;
+    saveas(gcf,'fig.png')
 end
 
 

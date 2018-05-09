@@ -10,6 +10,8 @@
 - Install libsvm, for linux `cd libsvm; make`
 - Install libsvm for matlab, check readme in libsvm/matlab
 
+- For Windows, git clone above mentioned repos, and enter in Matlab: `addpath (genpath ('path\to\libsvm_or_liblinear\matlab'))` 
 
 #### Run
 - run main.m in matlab
+

@@ -58,7 +58,7 @@ function data = load_dataset(data, features, preprocessing)
   elseif isequal(data.name, 'office-caltech-repeated')
     data = load_office_caltech(datadir, data, 'full');
     data.name = 'office-caltech-repeated';
-    data.num_repetitions = 5;
+    data.num_repetitions = 3;
   elseif isequal(data.name, 'office-caltech-standard')
     data = load_office_caltech(datadir, data, 'standard');
     data = shuffle_data(data);
