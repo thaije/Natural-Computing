@@ -35,7 +35,7 @@ function results = run_methods(data, methods, varargin)
   if ~isfield(opts,'verbose'), opts.verbose = true; end
   if ~isfield(opts,'debug'), opts.debug = false; end
   if ~isfield(opts,'quick'), opts.quick = false; end
-  if ~isfield(opts,'use_cache'), opts.use_cache = true; end
+  if ~isfield(opts,'use_cache'), opts.use_cache = false; end
   if ~isfield(opts,'update_cache'), opts.update_cache = opts.use_cache; end
   if ~isfield(opts,'cache_path'), opts.cache_path = '~/cache/domain-adaptation'; end
   
@@ -137,10 +137,11 @@ function results = run_methods(data, methods, varargin)
         y_train = data.y{src}(train,:);
         y_test  = data.y{src}(~train,:);
       else
-        x_train = data.x{src};
-        x_test  = data.x{tgt};
-        y_train = data.y{src};
-        y_test  = data.y{tgt};
+        subset = rand(size(data.x{tgt},1),1) < 0.1;
+        x_train = [data.x{src}; data.x{tgt}(subset,:)];
+        x_test  = data.x{tgt}(~subset,:);
+        y_train = [data.y{src}; data.y{tgt}(subset,:)];
+        y_test  = data.y{tgt}(~subset,:);
       end
       clear x_train_pp;
     
