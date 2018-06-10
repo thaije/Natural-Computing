@@ -8,7 +8,7 @@ env = gym.make('SuperMarioBros-1-1-v1') # should be different from second world
 env2 = gym2.make('SuperMarioBros-1-2-v1') # this one overwrites first
 state = env.reset()
 state = env2.reset()
-env.close()
+# env.close()
 
 done = True
 done2 = True

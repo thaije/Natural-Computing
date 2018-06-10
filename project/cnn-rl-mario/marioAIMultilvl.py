@@ -8,7 +8,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Reshape
 from keras.layers.convolutional import Convolution2D
 from keras import backend as K
-import random
+import random, h5py, os.path, pickle
 
 def pad_state(state, const=0):
     """
@@ -59,6 +59,10 @@ class Qnetwork:
         # Model network function
         self.model = self._build_model(env)
 
+        if info['LoadModel']:
+            self.load_model(info['LoadModel'])
+
+
     def _build_model(self, env):
         input_2D = env.observation_space.shape[:2]
         input_3D = (1,) + input_2D
@@ -83,6 +87,27 @@ class Qnetwork:
         model.summary()
 
         return model
+
+    def save_model(self, filename):
+        # serialize model to JSON
+        # model_json = self.model.to_json()
+        # with open("models/" + filename + ".json", "w+") as json_file:
+        #     json_file.write(model_json)
+
+        # serialize weights to HDF5
+        self.model.save_weights("models/" + filename + ".h5")
+        print("Saved model to disk in model/" + filename)
+
+
+    def load_model(self, filename):
+        # check first if file exists
+        if not os.path.isfile("models/" + filename + ".h5"):
+            print("Couldn't load model weights from model/" + filename + ". File does not exist. Creating new model.")
+            return False
+
+        self.model.load_weights("models/" + filename + ".h5")
+        print("Loaded model weights from disk from model/" + filename)
+
 
     def getIfromRGB(self, rgb):
         "RGB to integer converter"
@@ -222,6 +247,8 @@ class Qagent(object):
         return self.action
 
 
+    def save_model(self, filename):
+        self.Qnetwork.save_model(filename)
 
 
 
@@ -254,6 +281,7 @@ class Memory:
 
 
 
+# load a random world / level and return the env
 def init_level(info):
     world = random.choice(info['Worlds'])
     lvl = random.choice(info['Levels'])
@@ -261,10 +289,30 @@ def init_level(info):
     env = gym_super_mario_bros.make(info['Game'] + "-" + str(world) + "-" + str(lvl) + "-" + info['Version'])
 
     outdir = '/tmp/random-agent-results'
-    # env = wrappers.Monitor(env, directory=outdir, force=True)
+    # env = wrappers.Monitor(env, directory=outdir, force=True) # this line disables closing
     env.seed(0)
 
     return env
+
+
+# safe deaths and iter
+def save_model_params(info, deaths, iter):
+    with open("models/" + info['SaveModel'] + "_params", 'wb') as fp:
+        pickle.dump([deaths, iter], fp)
+
+
+
+# load default params, or from loaded model if defined
+def init_params(info):
+    if not info['LoadModel']:
+        return 0, 0
+
+    # read in params from loaded model
+    with open ("models/" + info['SaveModel'] + "_params", 'rb') as fp:
+        [deaths, iter] = pickle.load(fp)
+        return deaths, iter
+
+
 
 
 # The actual code
@@ -273,24 +321,24 @@ N_iters_explore = 40000
 info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1,2,3,4,5,6,7,8],
-    "Levels" : [1,3,4],
+    "Levels" : [1,3,4], # level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
-               }
+               },
+   "LoadModel" : "saved_model1", # False = no loading, filename = loading (e.g. "marioSavedv2")
+   "SaveModel" : "saved_model1", # False= no saving, filename = saving (e.g. "marioSavedv2")
 }
 
 
-
+# load random mario world/level
 env = init_level(info)
-
 
 if info["Agent"]["type"] == 0:
     agent = RandomAgent(env.action_space)
 else:
-
     agent = Qagent(env, info) # For now
 
 episode_count = 100
@@ -299,33 +347,40 @@ done = False
 
 # SS params
 reward_run = []
-deaths = 0
-iter = 0
+deaths, iter = init_params(info)
 
 
-#for i in range(episode_count):
-while True:
-    state = env.reset()
+try:
     while True:
-        action = agent.act(state, reward, done)
-        state, reward, done, _ = env.step(action)
+        state = env.reset()
+        while True:
+            action = agent.act(state, reward, done)
+            state, reward, done, _ = env.step(action)
 
-        if reward < -50:
-            print ("------DEAD!!------")
-            env.close()
-            env = init_level(info)
+            if reward < -50:
+                print ("------DEAD!------")
+                env.close()
+                env = init_level(info)
 
-            reward_run = []
-            reward_run.append(0)
-            deaths += 1
-        else:
-            reward_run.append(reward)
-        iter += 1
-        print("Iter: {0} | Reward: {1} | Current distance: {2} | Deaths: {3}".format(iter,reward, np.sum(reward_run), deaths))
+                reward_run = []
+                reward_run.append(0)
+                deaths += 1
+            else:
+                reward_run.append(reward)
+            iter += 1
+            print("Iter: {0} | Reward: {1} | Current distance: {2} | Deaths: {3}".format(iter,reward, np.sum(reward_run), deaths))
 
-        # Stops the game
-        if done:
-            break
-
-# Close the env and write monitor result info to disk
-env.close()
+            # Stops the game
+            if done:
+                break
+except KeyboardInterrupt:
+    print ("Interrupted by user, shutting down")
+except Exception as e:
+    traceback.print_exc()
+    print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
+finally:
+    # Close the env and write model / result info to disk
+    env.close()
+    if info['SaveModel']:
+        agent.save_model(info['SaveModel'])
+        save_model_params(info, deaths, iter)
