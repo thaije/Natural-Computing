@@ -145,16 +145,6 @@ class Qnetwork:
         rewards[0] = reward
         ######################
 
-        ##### Steven reward fix #####
-        Dims = np.shape(History.state_memory)
-        rewards = np.zeros(Dims[0])
-        for i in range(Dims[0]):
-            Xi = self._prepro(History.state_memory[i])
-
-            rewards[i] = (self.gamma ** i) * np.max(self.model.predict(Xi))
-        rewards[0] = reward
-        ####################
-
         Q_oldest = self.model.predict(X_oldest)
         Q_target_oldest = np.copy(Q_oldest)
 
@@ -340,16 +330,16 @@ N_iters_explore = 200000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1,2,3],
-    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
+    "Worlds" : [1,2,3,4],
+    "Levels" : [4], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "model_easy-dark_1-3_1", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "model_easy-dark_1-3_1", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "model_white_1-4_1", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "model_white_1-4_1", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
