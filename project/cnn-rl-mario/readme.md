@@ -8,11 +8,9 @@
 https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # Todo:
-+ save trained model
-+ play trained model
-+ run game on multiple kinds of levels
 - run multiple games in parallel?
-
+- reward distance^2 * lvl ?
+- plot progress?
 
 # Levels
 - `SuperMarioBros-<world>-<level>-v<version>`
