@@ -133,7 +133,17 @@ class Qnetwork:
         # Update with reward_nfuture steps based on historical records - hope this prevents getting stuck due to a large pole
         action_oldest = History.action_memory[0]
         X_oldest = self._prepro(History.state_memory[0])
-        rewards = [r * (self.gamma**i) for i, r in enumerate(History.reward_memory)]
+        # rewards = [r * (self.gamma**i) for i, r in enumerate(History.reward_memory)]
+
+        # ##### TEMP ATTEMP reward#####
+        Dims = np.shape(History.state_memory)
+        rewards = np.zeros(Dims[0])
+        for i in range(Dims[0]):
+            Xi = self._prepro(History.state_memory[i])
+
+            rewards[i] = (self.gamma ** i) * np.max(self.model.predict(Xi))
+        rewards[0] = reward
+        ######################
 
         Q_oldest = self.model.predict(X_oldest)
         Q_target_oldest = np.copy(Q_oldest)
