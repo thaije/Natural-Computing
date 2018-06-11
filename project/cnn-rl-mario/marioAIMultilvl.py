@@ -8,7 +8,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Reshape
 from keras.layers.convolutional import Convolution2D
 from keras import backend as K
-import random, h5py, os.path, pickle
+import random, h5py, os.path, pickle, traceback, sys
 
 def pad_state(state, const=0):
     """
@@ -304,7 +304,7 @@ def save_model_params(info, deaths, iter):
 
 # load default params, or from loaded model if defined
 def init_params(info):
-    if not info['LoadModel']:
+    if not info['LoadModel'] or not os.path.isfile("models/" + info['SaveModel'] + "_params"):
         return 0, 0
 
     # read in params from loaded model
@@ -321,15 +321,15 @@ N_iters_explore = 40000
 info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1,2,3,4,5,6,7,8],
-    "Levels" : [1,3,4], # level 2 is random shit for all worlds, e.g. water world. See readme
+    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "saved_model1", # False = no loading, filename = loading (e.g. "marioSavedv2")
-   "SaveModel" : "saved_model1", # False= no saving, filename = saving (e.g. "marioSavedv2")
+   "LoadModel" : "model_only_lvl1s", # False = no loading, filename = loading (e.g. "marioSavedv2")
+   "SaveModel" : "model_only_lvl1s", # False= no saving, filename = saving (e.g. "marioSavedv2")
 }
 
 
@@ -352,7 +352,9 @@ deaths, iter = init_params(info)
 
 try:
     while True:
+        env = init_level(info)
         state = env.reset()
+
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
@@ -361,6 +363,7 @@ try:
                 print ("------DEAD!------")
                 env.close()
                 env = init_level(info)
+                env.reset()
 
                 reward_run = []
                 reward_run.append(0)
@@ -372,6 +375,7 @@ try:
 
             # Stops the game
             if done:
+                env.close()
                 break
 except KeyboardInterrupt:
     print ("Interrupted by user, shutting down")
@@ -380,7 +384,8 @@ except Exception as e:
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
 finally:
     # Close the env and write model / result info to disk
-    env.close()
+    if env:
+        env.close()
     if info['SaveModel']:
         agent.save_model(info['SaveModel'])
         save_model_params(info, deaths, iter)
