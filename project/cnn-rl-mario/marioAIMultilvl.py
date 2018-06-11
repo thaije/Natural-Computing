@@ -303,33 +303,33 @@ def save_model_params(info, deaths, iter):
 
 
 # load default params, or from loaded model if defined
-def init_params(info):
+def init_params(info, agent):    
     if not info['LoadModel'] or not os.path.isfile("models/" + info['SaveModel'] + "_params"):
-        return 0, 0
+        return 0, 0, agent
 
     # read in params from loaded model
     with open ("models/" + info['SaveModel'] + "_params", 'rb') as fp:
         [deaths, iter] = pickle.load(fp)
-        return deaths, iter
-
+        agent.iter = iter
+        return deaths, iter, agent
 
 
 
 # The actual code
-N_iters_explore = 40000
+N_iters_explore = 200000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1,2,3,4,5,6,7,8],
-    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
+    "Worlds" : [1,2,3,4,5,6],
+    "Levels" : [1,3], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "model_only_lvl1s", # False = no loading, filename = loading (e.g. "marioSavedv2")
-   "SaveModel" : "model_only_lvl1s", # False= no saving, filename = saving (e.g. "marioSavedv2")
+   "LoadModel" : "model_dark_easy_lvlsv2", # False = no loading, filename = loading (e.g. "marioSavedv2")
+   "SaveModel" : "model_dark_easy_lvlsv2", # False= no saving, filename = saving (e.g. "marioSavedv2")
 }
 
 
@@ -347,8 +347,7 @@ done = False
 
 # SS params
 reward_run = []
-deaths, iter = init_params(info)
-
+deaths, iter, agent = init_params(info, agent)
 
 try:
     while True:

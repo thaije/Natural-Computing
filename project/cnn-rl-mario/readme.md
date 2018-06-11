@@ -8,8 +8,8 @@
 https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # Todo:
-- save trained model
-- play trained model
++ save trained model
++ play trained model
 + run game on multiple kinds of levels
 - run multiple games in parallel?
 
@@ -34,3 +34,4 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 - if you create multiple gym_super_mario_bros environments, the world/level of the last one overwrites the first one (world/level).
 So you can't have two different worlds/levels running in the emulator from the same script at the same time
 - if you run multiple emulators from one script at once, the script will run 10(?) frames in the first, than 10(?) in the second, back-and-forth.
+- maybe add a reward for passing a place where it died many times?
