@@ -328,8 +328,8 @@ info = {
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "model_dark_easy_lvlsv2", # False = no loading, filename = loading (e.g. "marioSavedv2")
-   "SaveModel" : "model_dark_easy_lvlsv2", # False= no saving, filename = saving (e.g. "marioSavedv2")
+   "LoadModel" : "model_dark_easy_1-5_13", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "model_dark_easy_1-5_13", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
