@@ -10,6 +10,9 @@ from keras.layers.convolutional import Convolution2D
 from keras import backend as K
 import random, h5py, os.path, pickle, traceback, sys
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import style
+
 
 def pad_state(state, const=0):
     """
@@ -318,7 +321,7 @@ def save_model_params(info, deaths, iter):
 
 # load default params, or from loaded model if defined
 def init_params(info, agent):
-    if not info['LoadModel'] or not os.path.isfile("models/" + info['SaveModel'] + "_params"):
+    if not info['LoadModel'] or not os.path.isfile("models/" + info['SaveModel'] + "_params") or info['LoadModel']=="False":
         return 0, 0, agent
 
     # read in params from loaded model
@@ -328,16 +331,45 @@ def init_params(info, agent):
         return deaths, iter, agent
 
 
-def plot(run_iter, total_iter, distances, cumu_rewards):
-    plt.plot(total_iter, distances)
 
-    min_y = 0 if min(distances) > 0 else min(distances)
-    deaths = range(1, len(total_iter) + 1)
+class MarioPlotter(object):
+    def __init__(self):
+        self.deaths = 0
+        self. distances = []
 
-    plt.axis([0, deaths, min_y, max(distances)])
-    plt.xlabel("Total iterations")
-    plt.ylabel("rewards / distances")
-    plt.show()
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+        self.fig.suptitle("Mario statistics")
+        self.ax.set_ylabel("Distance")
+        self.ax.set_xlabel("Death #")
+
+        # For live plotting
+        self.nowplot, = self.ax.plot([0],[0], 'r-')
+
+        self.fig.canvas.draw()
+        plt.show(block=False)
+
+
+    def __call__(self, dist):
+        "Updates the plot"
+
+        # Set params
+        self.deaths += 1
+        self.distances.append(dist)
+
+        # Update input
+        self.nowplot.set_xdata(range(1,1+self.deaths))
+        self.nowplot.set_ydata(self.distances)
+
+        # Live plot
+        self.ax.relim()
+        self.ax.autoscale_view(True,True,True)
+        self.fig.canvas.draw()
+
+
+
+
 
 
 
@@ -346,7 +378,7 @@ N_iters_explore = 1#200000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1,3],
+    "Worlds" : [1],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Plottyplot" : True,
@@ -355,8 +387,8 @@ info = {
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "test", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "test", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "False", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "False", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
@@ -383,6 +415,8 @@ cumu_rewards = []
 reward_run = []
 deaths, iter, agent = init_params(info, agent)
 
+Plotter = MarioPlotter()
+
 try:
     while True:
         env = init_level(info)
@@ -396,7 +430,6 @@ try:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
 
-            print("Iter: {} | Reward: {} | Current distance: {} | Deaths: {}".format(iter,reward, np.sum(reward_run), deaths))
 
             if reward < -50:
                 print ("------DEAD!------")
@@ -404,13 +437,22 @@ try:
                 env = init_level(info)
                 env.reset()
 
-                cumu_reward = np.sum(reward_run) + reward # deduct death from total
+                curr_dist = np.sum(reward_run) - reward
+
+                Plotter(curr_dist) # Add death to plot
+
                 reward_run = []
                 reward_run.append(0)
+
                 deaths += 1
+
+
             else:
                 reward_run.append(reward)
+                curr_dist = np.sum(reward_run)
             iter += 1
+
+            print("Iter: {} | Reward: {} | Current distance: {} | Deaths: {}".format(iter, reward, curr_dist, deaths))
 
             # Stops the game
             if done:
@@ -432,5 +474,5 @@ finally:
     if info['SaveModel']:
         agent.save_model(info['SaveModel'])
         save_model_params(info, deaths, iter)
-    if info['Plottyplot'] and deaths > 0:
-        plot(run_iter, total_iter, distances, cumu_rewards)
+    # if info['Plottyplot'] and deaths > 0:
+    #     plot(run_iter, total_iter, distances, cumu_rewards)
