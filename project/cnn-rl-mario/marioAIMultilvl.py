@@ -328,7 +328,7 @@ def init_params(info, agent):
 
 
 # The actual code
-N_iters_explore = #200000
+N_iters_explore = 1#200000
 
 info = {
     "Game" : 'SuperMarioBros',
