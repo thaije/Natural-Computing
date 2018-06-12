@@ -8,9 +8,28 @@
 https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # Todo:
-- run multiple games in parallel?
-- reward distance^2 * lvl ?
-- plot progress?
+- run multiple games in parallel
+- reward distance^2 * lvl, lvl complete bonus, death
+- change env to minimize action space
+- is death reward ever processed?
+- on win bonus reward
+- load params of previous run and include in plot
+- plot progress? distance traveled per world/lvl, cum reward
+- https://github.com/GAIGResearch/GVGAI/wiki/Forward-Model-and-State-Observation
+- https://github.com/GAIGResearch/GVGAI/wiki/Sample-One-Step-Look-Ahead-Controller
+
+- agent position / speed
+- collisions/events log
+- give agent game specific info (agent pos/collision log/etc), or tell it nothing and give it only normal input
+- deep Q-learning
+
+- preprocessing see 4.1 https://arxiv.org/pdf/1312.5602v1.pdf
+- replay memory
+
+
+# notes
+- trainen op lvl 1/3, testen lvl 2
+
 
 # Levels
 - `SuperMarioBros-<world>-<level>-v<version>`

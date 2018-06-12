@@ -9,6 +9,7 @@ from keras.layers import Conv2D, MaxPooling2D, Reshape
 from keras.layers.convolutional import Convolution2D
 from keras import backend as K
 import random, h5py, os.path, pickle, traceback, sys
+import matplotlib.pyplot as plt
 
 def pad_state(state, const=0):
     """
@@ -201,6 +202,7 @@ class Qagent(object):
         self.info = info
         self.action_space = env.action_space
 
+
         self.Qnetwork = Qnetwork(env, info)
 
         self.start = 1
@@ -326,22 +328,35 @@ def init_params(info, agent):
         return deaths, iter, agent
 
 
+def plot(run_iter, total_iter, distances, cumu_rewards):
+    plt.plot(total_iter, distances)
+
+    min_y = 0 if min(distances) > 0 else min(distances)
+    deaths = range(1, len(total_iter) + 1)
+
+    plt.axis([0, deaths, min_y, max(distances)])
+    plt.xlabel("Total iterations")
+    plt.ylabel("rewards / distances")
+    plt.show()
+
+
 
 # The actual code
 N_iters_explore = 1#200000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1,2,3,4],
+    "Worlds" : [1,3],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
+    "Plottyplot" : True,
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "model_SS",#"model_white_1-4_1", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "model_SS",#"model_white_1-4_1", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "test", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "test", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
@@ -357,6 +372,13 @@ episode_count = 100
 reward = 0
 done = False
 
+
+# save runs for plot
+total_iter = []
+run_iter = []
+distances = []
+cumu_rewards = []
+
 # SS params
 reward_run = []
 deaths, iter, agent = init_params(info, agent)
@@ -366,9 +388,15 @@ try:
         env = init_level(info)
         state = env.reset()
 
+        # run specific vars
+        start_iter = iter
+        cumu_reward = 0
+
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
+
+            print("Iter: {} | Reward: {} | Current distance: {} | Deaths: {}".format(iter,reward, np.sum(reward_run), deaths))
 
             if reward < -50:
                 print ("------DEAD!------")
@@ -376,17 +404,21 @@ try:
                 env = init_level(info)
                 env.reset()
 
+                cumu_reward = np.sum(reward_run) + reward # deduct death from total
                 reward_run = []
                 reward_run.append(0)
                 deaths += 1
             else:
                 reward_run.append(reward)
             iter += 1
-            print("Iter: {0} | Reward: {1} | Current distance: {2} | Deaths: {3}".format(iter,reward, np.sum(reward_run), deaths))
 
             # Stops the game
             if done:
                 env.close()
+                cumu_rewards.append(cumu_reward)
+                run_iter.append(iter - start_iter)
+                distances.append(cumu_reward)
+                total_iter.append(iter)
                 break
 except KeyboardInterrupt:
     print ("Interrupted by user, shutting down")
@@ -400,3 +432,5 @@ finally:
     if info['SaveModel']:
         agent.save_model(info['SaveModel'])
         save_model_params(info, deaths, iter)
+    if info['Plottyplot'] and deaths > 0:
+        plot(run_iter, total_iter, distances, cumu_rewards)
