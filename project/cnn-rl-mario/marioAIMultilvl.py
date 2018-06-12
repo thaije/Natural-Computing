@@ -247,7 +247,9 @@ class Qagent(object):
 
         elif info["Agent"]["policy"] == "softmax":
             probs = self.Qnetwork.action_probs(state)
-            if np.sum(probs[0] > 0) < 1: # Make sure to not get an error when all probabilities are 0
+            if np.sum(probs[0]) < 0.1: # If most options suck
+                self.action = self.action_space.sample()
+            elif np.sum(probs[0] > 0) < 1: # Make sure to not get an error when all probabilities are 0
                 self.action = self.action_space.sample()
             else:
                 self.action = np.random.choice(len(probs[0]), p=probs[0], replace=False)
@@ -300,7 +302,7 @@ def init_level(info):
 
     outdir = '/tmp/random-agent-results'
     # env = wrappers.Monitor(env, directory=outdir, force=True) # this line disables closing
-    env.seed(0)
+    # env.seed(0)
 
     return env
 
@@ -326,20 +328,20 @@ def init_params(info, agent):
 
 
 # The actual code
-N_iters_explore = 200000
+N_iters_explore = #200000
 
 info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1,2,3,4],
-    "Levels" : [4], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
+    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v1",
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Memory": {"size" : 7},
     "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
-   "LoadModel" : "model_white_1-4_1", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "model_white_1-4_1", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "model_SS",#"model_white_1-4_1", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "model_SS",#"model_white_1-4_1", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
