@@ -64,7 +64,7 @@ class Qnetwork:
         # Model network function
         self.model = self._build_model(env)
 
-        if info['LoadModel']:
+        if info['LoadModel'] != "False":
             self.load_model(info['LoadModel'])
 
 
@@ -420,10 +420,10 @@ info = {
     "Version" : "v2",
     "Plottyplot" : True,
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
-    "Predict_future_n": {"size" : 4},
-    "Replay": {"memory": 100000, "batchsize": 10},
+    "Predict_future_n": {"size" : 6},
+    "Replay": {"memory": 100000, "batchsize": 2},
     "Agent": {"type": 1, "eps_min": 0.1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
-              "policy": "softmax" #softmax
+              "policy": "hardmax" #softmax
                },
    "LoadModel" : "False", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
    "SaveModel" : "False", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
