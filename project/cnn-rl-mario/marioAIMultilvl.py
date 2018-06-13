@@ -55,6 +55,7 @@ class Qnetwork:
 
         # Training Parameters
         self.network_info = info["Network"]
+        self.replay_info = info["Replay"]
 
         # Learning parameters
         self.learning_rate = self.network_info["learning_rate"]
@@ -113,65 +114,74 @@ class Qnetwork:
         print("Loaded model weights from disk from model/" + filename)
 
 
-    def getIfromRGB(self, rgb):
-        "RGB to integer converter"
-        red = rgb[:, :, 0]
-        green = rgb[:, :, 1]
-        blue = rgb[:, :, 2]
-        RGBint = (red << 16) + (green << 8) + blue
-        return RGBint
+    def _get_reward(self, statelist, reward_first):
+        "Calculates the reward based on however many states are in the list. So if there are 2 states it looks two in the future, etc.."
 
-    def _prepro(self, state):
-        "Reshape for (1, DIM) as input to Keras"
-        state = self.getIfromRGB(state)
-        return state.reshape((1,) + state.shape)
+        Dims = np.shape(statelist)
+
+        rewards = [(self.gamma ** i) * np.max(statelist[i]) for i in range(Dims[0])]
+        rewards[0] = reward_first
+
+        return np.sum(rewards)
+
+    def _randbatch(self, History):
+        future_look_size = History.memory_info["size"]
+        n_states_stored = History.cur_size
+
+        if n_states_stored <= future_look_size:
+            states = History.state_memory
+            reward_first = History.reward_memory[0]
+            action_first = History.action_memory[0]
+        else:
+            idx = np.random.randint(n_states_stored - future_look_size)
+            states = History.state_memory[idx:(idx + future_look_size)]
+            reward_first = History.reward_memory[idx]
+            action_first = History.action_memory[idx]
+
+        return states, reward_first, action_first
+
 
 
     def update(self, History):
-        old_state = History.state_memory[-1]
-        new_state = History.state_next_memory
-        reward = History.reward_memory[-1]
+
+        ### Replay
+        # Creates n batches of size n_future_look and fits model
+        # The main part that makes this slow is the actual fitting! (not the loopy loops)
+        n_replay = self.replay_info["batchsize"]
+        if History.cur_size > History.memory_info["size"]:
+            X= []
+            Y =[]
+            for i in range(n_replay):
+                states, reward_first, action_first = self._randbatch(History)
+
+                state_0 = states[0]
+                reward_0 = self._get_reward(states, reward_first)
+
+                Q = self.model.predict(state_0)
+                Q_target = np.copy(Q)
+                Q_target[0][action_first] = reward_0
+
+                loss_0 = Q_target - Q
+
+                Y.append(loss_0)
+                X.append(state_0)
+
+            X = np.squeeze(np.asarray(X))
+            Y = np.squeeze(np.asarray(Y))
+
+            self.model.fit(X, Y, batch_size = self.replay_info["batchsize"], verbose=0, epochs=1)
+
+
+        ## Normal updates. Looking 1 in future
+        X = History.state_memory[-1]
+        X_next = History.state_next_memory[-1]
         action = History.action_memory[-1]
 
+        X_next = np.reshape(X_next, (1,) + np.shape(X_next))
 
-        # Update with reward_nfuture steps based on historical records - hope this prevents getting stuck due to a large pole
-        action_oldest = History.action_memory[0]
-        X_oldest = self._prepro(History.state_memory[0])
-        # rewards = [r * (self.gamma**i) for i, r in enumerate(History.reward_memory)]
-
-        # ##### TEMP ATTEMP reward#####
-        Dims = np.shape(History.state_memory)
-        rewards = np.zeros(Dims[0])
-        for i in range(Dims[0]):
-            Xi = self._prepro(History.state_memory[i])
-
-            rewards[i] = (self.gamma ** i) * np.max(self.model.predict(Xi))
-        rewards[0] = reward
-        ######################
-
-        Q_oldest = self.model.predict(X_oldest)
-        Q_target_oldest = np.copy(Q_oldest)
-
-        Q_target_oldest[0][action_oldest] = np.sum(rewards)
-
-        loss_oldest = Q_target_oldest - Q_target_oldest
-
-        Y_oldest = loss_oldest
-
-        self.model.train_on_batch(X_oldest, Y_oldest)
-
-
-
-        # This is updating based on n+1
-        X = self._prepro(old_state)
-        X_next = self._prepro(new_state)
-
-        # Updating
-        # Predict next Qtable
         Q_next = self.model.predict(X_next)
         Q_max_next = np.max(Q_next)
 
-        # Current Qtable
         Q = self.model.predict(X)
 
         Q_target = np.copy(Q)
@@ -184,15 +194,17 @@ class Qnetwork:
         self.model.train_on_batch(X, Y)
 
 
+
+
     def best_action(self, state):
         "Gets best action based on current state"
-        X = self._prepro(state)
+        X = state
         Q = self.model.predict(X)
         return np.argmax(Q)
 
 
     def action_probs(self, state):
-        X = self._prepro(state)
+        X = state
         Q = self.model.predict(X)
         Q[Q <0] = 0
 
@@ -216,6 +228,18 @@ class Qagent(object):
 
         self.History = Memory(info)
 
+    def getIfromRGB(self, rgb):
+        "RGB to integer converter"
+        red = rgb[:, :, 0]
+        green = rgb[:, :, 1]
+        blue = rgb[:, :, 2]
+        RGBint = (red << 16) + (green << 8) + blue
+        return RGBint
+
+    def _prepro(self, state):
+        "Reshape for (1, DIM) as input to Keras"
+        state = self.getIfromRGB(state)
+        return state.reshape((1,) + state.shape)
 
     def _update_statelist(self, state):
         """To store previous state en new state. Previous state is associated with the current reward"""
@@ -228,6 +252,8 @@ class Qagent(object):
             self.state_hist.append(state)
 
     def act(self, state, reward, done):
+        state = self._prepro(state)
+
         self._update_statelist(state)
         if self.start: # If first iter then there's no history to learn from
             self.action = self.action_space.sample()
@@ -243,6 +269,8 @@ class Qagent(object):
 
         # Check for greedy
         self.eps = np.exp(-self.eps_decay * self.iter)
+
+        if self.eps < self.info["Agent"]["eps_min"]: self.eps = self.info["Agent"]["eps_min"] # Make sure to maintain a minimum greediness
 
         if np.random.uniform(0, 1) < self.eps: # Be greedy
             self.action = self.action_space.sample()
@@ -271,23 +299,27 @@ class Qagent(object):
 
 class Memory:
     def __init__(self, info):
-
         # Memory info
-        self.memory_info = info["Memory"]
+        self.memory_info = info["Predict_future_n"]
+        self.replay_info = info["Replay"]
 
 
         self.state_memory = []
         self.state_next_memory = []
         self.action_memory = []
         self.reward_memory = []
+        self.cur_size = 0
 
     def _update_memory(self):
-        if len(self.state_memory) > self.memory_info["size"]:
+        # if len(self.state_memory) > self.memory_info["size"]:
+        if len(self.state_memory) > self.replay_info["memory"]:
+
 
             del self.state_memory[0]
             del self.action_memory[0]
             del self.reward_memory[0]
 
+        self.cur_size = len(self.state_memory)
     def append_to_memory(self, state, state_next, action, reward):
         self.state_memory.append(state)
         self.state_next_memory = state_next
@@ -295,6 +327,7 @@ class Memory:
         self.reward_memory.append(reward)
 
         self._update_memory()
+
 
 
 
@@ -380,16 +413,18 @@ info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v1",
+    "Version" : "v2",
     "Plottyplot" : True,
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
-    "Memory": {"size" : 7},
-    "Agent": {"type": 1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
+    "Predict_future_n": {"size" : 4},
+    "Replay": {"memory": 100000, "batchsize": 10},
+    "Agent": {"type": 1, "eps_min": 0.1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "softmax" #softmax
                },
    "LoadModel" : "False", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
    "SaveModel" : "False", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
+
 
 
 # load random mario world/level
@@ -463,7 +498,7 @@ try:
                 total_iter.append(iter)
                 break
 except KeyboardInterrupt:
-    print ("Interrupted by user, shutting down")
+    print ("Interrupted blsy user, shutting down")
 except Exception as e:
     traceback.print_exc()
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
@@ -474,5 +509,3 @@ finally:
     if info['SaveModel']:
         agent.save_model(info['SaveModel'])
         save_model_params(info, deaths, iter)
-    # if info['Plottyplot'] and deaths > 0:
-    #     plot(run_iter, total_iter, distances, cumu_rewards)
