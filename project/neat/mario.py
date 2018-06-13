@@ -544,7 +544,7 @@ if __name__ == '__main__':
 
 	LEVEL_LEN = 3186 #not sure if correct
 
-	for i in range(10000):
+	while True:
 		time_out = 20
 		state = env.reset()
 		initializeRun(pool, inp_size)
