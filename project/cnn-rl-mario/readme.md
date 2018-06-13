@@ -8,23 +8,28 @@
 https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # Todo:
+- plotting
+    - reward by trial (average of 5)
+    - average Q value
+    - load params of previous run and include in plot
+    - run for 5 million iterations or so
+- reward =
+    - paper -> distance to the right + total game score. Primary = get to finish. Second=get high score
+    - seperate reward for get live, finish level, loose live
+    - reward distance^2 * lvl, lvl complete bonus, death
+    - fast moving right / left. Low negative reward for dying? https://github.com/aleju/mario-ai
+- actions:
+    - change env to minimize action space https://github.com/Naereen/gym-nes-mario-bros/blob/master/src/nesgym/mario_bros_env.py
 - run multiple games in parallel
-- reward distance^2 * lvl, lvl complete bonus, death
-- change env to minimize action space
-- is death reward ever processed?
-- on win bonus reward
-- load params of previous run and include in plot
-- plot progress? distance traveled per world/lvl, cum reward
-- https://github.com/GAIGResearch/GVGAI/wiki/Forward-Model-and-State-Observation
-- https://github.com/GAIGResearch/GVGAI/wiki/Sample-One-Step-Look-Ahead-Controller
+    - multithreading?
+    - https://github.com/Naereen/gym-nes-mario-bros/blob/master/src/run-mario.py
+- network adaptations:
+    - choose_action > env.step > learn
+    - (Double) deep Q-learning https://github.com/Naereen/gym-nes-mario-bros/tree/master/src/dqn / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
+    - Ours 128 -> 64 > 32 > 16. Theirs 32 > 64 > 64 ? Check different architectures.
+    - preprocessing to grey scale etc. preprocessing see 4.1 https://arxiv.org/pdf/1312.5602v1.pdf / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
+    - replay history
 
-- agent position / speed
-- collisions/events log
-- give agent game specific info (agent pos/collision log/etc), or tell it nothing and give it only normal input
-- deep Q-learning
-
-- preprocessing see 4.1 https://arxiv.org/pdf/1312.5602v1.pdf
-- replay memory
 
 
 # notes
