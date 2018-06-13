@@ -4,12 +4,13 @@ import numpy as np
 import copy
 import pickle as pkl
 import random
+import pdb
 from scipy.misc import imresize
 
 
 class Pool():
 
-	def __init__(self):
+	def __init__(self, inp_size, out_size):
 	 
 		self.species = []
 		self.generation = 0
@@ -18,6 +19,8 @@ class Pool():
 		self.currentGenome = 0
 		self.currentFrame = 0
 		self.maxFitness = 0
+		self.inp_size = inp_size
+		self.out_size = out_size
 
 class Species():
 
@@ -57,6 +60,8 @@ class Genome():
 		self.mutationRates["node"] = orig.mutationRates["node"]
 		self.mutationRates["enable"] = orig.mutationRates["enable"]
 		self.mutationRates["disable"] = orig.mutationRates["disable"]
+
+
 
 
 class Gene():
@@ -139,13 +144,16 @@ def crossover(g1, g2):
 		innovations[g.innovation] = g
 
 	for g in g1.genes:
-		other = innovations[g.innovation]
+		try:
+			other = innovations[g.innovation]
+		except KeyError:
+			other = None	
 		if other and np.random.rand() > 0.5 and other.enabled:
 			child.genes.append(copy.deepcopy(other))
 		else:
 			child.genes.append(copy.deepcopy(g))
 
-	child.maxneuron = np.max(g1.maxneuron, g2.maxneuron)
+	child.maxneuron = np.max((g1.maxneuron, g2.maxneuron))
 	for mutation, rate in g1.mutationRates.items():
 		child.mutationRates[mutation] = rate
 
@@ -171,7 +179,7 @@ def randomNeuron(genes, inp_size, out_size, inp_node, max_nodes=1000000):
  
 def containsLink(genes, link):
 	for g in genes:
-		if g.into == link.into and gene.out == link.out:
+		if g.into == link.into and g.out == link.out:
 			return True 
 
 	return False
@@ -179,26 +187,26 @@ def containsLink(genes, link):
 def pointMutate(genome, perturb_chance):
 	step = genome.mutationRates['step']
 	for gene in genome.genes:
-		if math.random.rand() < perturb_chance:
+		if np.random.rand() < perturb_chance:
 			gene.weight = gene.weight + 2*step*(np.random.rand() - 0.5)
 		else:
 			gene.weight = 4*(np.random.rand() - 0.5)	
  
-def linkMutate(genome, forceBias, inp_size, out_size, pool):
+def linkMutate(genome, forceBias, pool):
 
-	neuron1 = randomNeuron(genome.genes,inp_size, out_size, True)
-	neuron2 = randomNeuron(genome.genes,inp_size, out_size, False)
+	neuron1 = randomNeuron(genome.genes, pool.inp_size, pool.out_size, True)
+	neuron2 = randomNeuron(genome.genes, pool.inp_size, pool.out_size, False)
 
 	newLink = Gene()
-	if neuron1 <= inp_size and neuron2 <= inp_size:
+	if neuron1 <= pool.inp_size and neuron2 <= pool.inp_size:
 		return
-	if neuron2 <= inp_size:
+	if neuron2 <= pool.inp_size:
 		neuron2, neuron1 = neuron1, neuron2
 
 	newLink.into = neuron1
 	newLink.out = neuron2
 	if forceBias:
-		newLink.into = inp_size
+		newLink.into = pool.inp_size
 
 	if containsLink(genome.genes, newLink):
 		return
@@ -261,7 +269,8 @@ def determine_mutate(genome, p, mutation_func, **kwargs):
 			mutation_func(genome, **kwargs)
 		p -= 1
 
-def mutate(genome, inp_size, out_size, pool, perturb_chance):
+def mutate(genome, pool, perturb_chance):
+
 	for mutation,rate in genome.mutationRates.items():
 		if np.random.rand() > .5:
 			genome.mutationRates[mutation] = .95*rate
@@ -271,10 +280,10 @@ def mutate(genome, inp_size, out_size, pool, perturb_chance):
 	if np.random.rand() < genome.mutationRates["connections"]:
 		pointMutate(genome, perturb_chance)	
 
-	arguments = {'forceBias': False, 'inp_size': inp_size, 'out_size': out_size, 'pool': pool}
+	arguments = {'forceBias': False, 'pool': pool}
 	determine_mutate(genome, genome.mutationRates['link'], linkMutate, **arguments)
 
-	arguments = {'forceBias': True, 'inp_size': inp_size, 'out_size': out_size, 'pool': pool}
+	arguments = {'forceBias': True, 'pool': pool}
 	determine_mutate(genome, genome.mutationRates['bias'], linkMutate, **arguments)
 			
 	arguments = {'pool': pool}
@@ -317,7 +326,7 @@ def weights(genes1, genes2):
 	for i,gene in enumerate(genes1):
 		try:
 			gene2 = i2[gene.innovation]
-			sum += np.abs(gene.weight - genes2.weight)
+			sum += np.abs(gene.weight - gene2.weight)
 			coincident += 1
 		except KeyError:
 			pass
@@ -346,7 +355,7 @@ def rankGlobally(pool):
 def calculateAverageFitness(species):
 	total = 0
 	for g in species.genomes:
-		total += genome.globalRank
+		total += g.globalRank
 
 	species.averageFitness = total / len(species.genomes)
 
@@ -354,14 +363,13 @@ def calculateAverageFitness(species):
 def totalAverageFitness(pool):
 	total = 0
 	for s in pool.species:
-		total += species.averageFitness
-
+		total += s.averageFitness
 	return total		
  
 def cullSpecies(pool, cutToOne):
 	for s in pool.species:
 		species.genomes.sort(key=lambda g: g.fitness)
-		remaining = np.ceil(len(species.genomes)//2)
+		remaining = np.ceil(len(species.genomes)/2)
 
 		if cutToOne:
 			remaining = 1
@@ -369,7 +377,7 @@ def cullSpecies(pool, cutToOne):
 		while len(species.genomes) > remaining:
 				species.genomes.remove(species.genomes[-1])
 
-def breedChild(species, crossover_chance):
+def breedChild(pool, species, crossover_chance, perturb_chance):
 	
 	if np.random.rand() < crossover_chance:
 		g1 = species.genomes[np.random.randint(len(species.genomes))]
@@ -377,9 +385,10 @@ def breedChild(species, crossover_chance):
 		child = crossover(g1,g2)
 	else:
 		g = species.genomes[np.random.randint(len(species.genomes))]	
-		child = Genome().copy(g)
+		child = Genome()
+		child.copy(g)
 
-	mutate(child)
+	mutate(child, pool, perturb_chance)
 	
 	return child	
 
@@ -388,9 +397,11 @@ def removeStaleSpecies(pool, stale_species):
 	survived = []
 	for species in pool.species:
 		species.genomes.sort(key=lambda x: x.fitness)
+		if not len(species.genomes):
+			continue
 
 		if species.genomes[0].fitness > species.topFitness:
-			species.topFitness = genomes[0].fitness
+			species.topFitness = species.genomes[0].fitness
 			species.staleness = 0
 		else:
 			species.staleness += 1
@@ -402,9 +413,9 @@ def removeStaleSpecies(pool, stale_species):
 
 def removeWeakSpecies(pool, population):
 	survived = []
-	sum = totalAverageFitness()
+	sum = totalAverageFitness(pool)
 	for species in pool.species:
-		breed = species.averageFitness // (sum*population)
+		breed = np.floor(species.averageFitness / sum * population)
 		if breed >=1:
 			survived.append(species)
 
@@ -423,7 +434,7 @@ def addToSpecies(pool, child, delta_disjoint, delta_weight, delta_threshold):
 		pool.species.append(childSpecies)
 
 
-def newGeneration(pool, stale_species, population, crossover_chance):
+def newGeneration(pool, stale_species, population, crossover_chance, perturb_chance, delta_weight, delta_threshold):
 	cullSpecies(pool, False)
 	rankGlobally(pool)
 	removeStaleSpecies(pool, stale_species)
@@ -433,32 +444,32 @@ def newGeneration(pool, stale_species, population, crossover_chance):
 		calculateAverageFitness(species)
 
 	removeWeakSpecies(pool, population)
-	sum = totalAverageFitness()
+	sum = totalAverageFitness(pool)
 	children = []
 	for species in pool.species:
-		breed = species.averageFitness // (sum * population) - 1
-		for i in range(breed):
-			children.append(breedChild(species, crossover_chance))
+		breed = np.floor(species.averageFitness / sum * population) - 1
+		for i in range(int(breed)):
+			children.append(breedChild(pool, species, crossover_chance, perturb_chance))
 
 	cullSpecies(pool,True)			
 
 	while len(children) + len(pool.species) < population:
 		species = pool.species[np.random.randint(len(pool.species))]
-		children.append(breedChild(species, crossover_chance))
+		children.append(breedChild(pool, species, crossover_chance, perturb_chance))
 
 	for child in children:
-		addToSpecies(pool, child)
+		addToSpecies(pool, child, delta_weight, delta_threshold, perturb_chance)
 
 	pool.generation += 1
 			
 
 def initializePool(population, inp_size, out_size, delta_disjoint, delta_weight, delta_threshold, perturb_chance):
-	pool = Pool()
 	size = np.prod(inp_size) + 1
+	pool = Pool(size, out_size)
 	for i in range(population):
 		basic = Genome()
 		basic.maxneuron = size
-		mutate(basic, size, out_size, pool, perturb_chance)
+		mutate(basic, pool, perturb_chance)
 		addToSpecies(pool, basic, delta_disjoint, delta_weight, delta_threshold)
 
 	initializeRun(pool, inp_size)
@@ -482,13 +493,13 @@ def evaluateCurrent(pool, inputs):
 	return controller
 
 
-def nextGenome(pool,stale_species,population,crossover_chance): 
+def nextGenome(pool, stale_species,population,crossover_chance, perturb_chance, delta_weight, delta_threshold): 
 	pool.currentGenome += 1
 	if pool.currentGenome >= len(pool.species[pool.currentSpecies].genomes):
 		pool.currentGenome = 0
 		pool.currentSpecies += 1
 		if pool.currentSpecies >= len(pool.species):
-			newGeneration(pool, stale_species, population, crossover_chance)
+			newGeneration(pool, stale_species, population, crossover_chance, perturb_chance, delta_weight, delta_threshold)
 			pool.currentSpecies = 0
 
 
@@ -591,7 +602,7 @@ if __name__ == '__main__':
 				pool.currentSpecies = 0
 				pool.currentGenome = 0
 				while fitnessAlreadyMeasured(pool):
-					nextGenome(pool, stale_species, population, crossover_chance)
+					nextGenome(pool, stale_species, population, crossover_chance, perturb_chance, delta_weight, delta_threshold)
 				
 				pos_info = {'pos':[], 'curr': 0, 'best': 0}
 
