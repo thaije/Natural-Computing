@@ -28,9 +28,6 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
     - (Double) deep Q-learning https://github.com/Naereen/gym-nes-mario-bros/tree/master/src/dqn / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
     - Ours 128 -> 64 > 32 > 16. Theirs 32 > 64 > 64 ? Check different architectures.
     - preprocessing to grey scale etc. preprocessing see 4.1 https://arxiv.org/pdf/1312.5602v1.pdf / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-    - replay history
-
-
 
 # notes
 - trainen op lvl 1/3, testen lvl 2
