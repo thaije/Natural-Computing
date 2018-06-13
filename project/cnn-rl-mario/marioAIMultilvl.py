@@ -236,9 +236,13 @@ class Qagent(object):
         RGBint = (red << 16) + (green << 8) + blue
         return RGBint
 
+    def rgb2gray(self,rgb):
+        return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
+
     def _prepro(self, state):
         "Reshape for (1, DIM) as input to Keras"
-        state = self.getIfromRGB(state)
+        # state = self.getIfromRGB(state)
+        state = self.rgb2gray(state)
         return state.reshape((1,) + state.shape)
 
     def _update_statelist(self, state):
