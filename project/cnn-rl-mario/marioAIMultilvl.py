@@ -411,7 +411,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 1#200000
+N_iters_explore = 40000#200000
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -421,7 +421,7 @@ info = {
     "Plottyplot" : True,
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Predict_future_n": {"size" : 6},
-    "Replay": {"memory": 100000, "batchsize": 2},
+    "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
@@ -510,6 +510,6 @@ finally:
     # Close the env and write model / result info to disk
     if env:
         env.close()
-    if info['SaveModel']:
+    if info['SaveModel'] != "False":
         agent.save_model(info['SaveModel'])
         save_model_params(info, deaths, iter)
