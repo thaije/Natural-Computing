@@ -12,6 +12,8 @@ import random, h5py, os.path, pickle, traceback, sys, copy
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
+from scipy.misc import imresize
+import matplotlib.pyplot as plt
 
 
 def calc_reward(old_reward, done):
@@ -26,7 +28,7 @@ def calc_reward(old_reward, done):
         new_reward = -0.1
     elif old_reward < 0 and old_reward >= -8: # If move to left
         new_reward = -1
-    elif old_reward < 0 and old_reward <-8 and old_reward > -50: # If move to left fast
+    elif old_reward <-8 and old_reward > -50: # If move to left fast
         new_reward = -1.5
     elif old_reward <= -50: # If dead
         new_reward = -3
@@ -87,34 +89,56 @@ class Qnetwork:
         if info['LoadModel']:
             self.load_model(info['LoadModel'])
 
-
         # Extra
         self.best_Qvalue = 0
 
 
     def _build_model(self, env):
-        input_2D = env.observation_space.shape[:2]
+        # input_2D = env.observation_space.shape[:2]
+        input_2D = (84, 84)
         input_3D = (1,) + input_2D
 
+        # SS model
+        # model = Sequential()
+        # model.add(Reshape(input_3D, input_shape=input_2D))
+        # model.add(Convolution2D(128, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(64, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(32, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(16, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        #
+        # model.add(Flatten())
+        # model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(64, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(32, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(env.action_space.n, activation="linear"))
 
+
+        # Model from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
         model = Sequential()
         model.add(Reshape(input_3D, input_shape=input_2D))
-        model.add(Convolution2D(128, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(64, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(32, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(16, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-
+        model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
 
         model.add(Flatten())
-        model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(64, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(32, activation="relu", kernel_initializer="he_uniform"))
+        model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
         model.add(Dense(env.action_space.n, activation="linear"))
+
+
+        # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
+        # model = Sequential()
+        # model.add(Reshape(input_3D, input_shape=input_2D))
+        # model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        #
+        # model.add(Flatten())
+        # model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(env.action_space.n, activation="linear"))
+
 
         model.compile(loss="mean_squared_error", optimizer="Adam")
         model.summary()
-
         return model
 
     def save_model(self, filename):
@@ -200,19 +224,16 @@ class Qnetwork:
         X = History.state_memory[-1]
         X_next = History.state_next_memory[-1]
         action = History.action_memory[-1]
-
         X_next = np.reshape(X_next, (1,) + np.shape(X_next))
 
         Q_next = self.model.predict(X_next)
         Q_max_next = np.max(Q_next)
-
         Q = self.model.predict(X)
 
         Q_target = np.copy(Q)
         Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
 
         loss = Q_target - Q
-
         Y = self.learning_rate * loss
 
         self.model.train_on_batch(X, Y)
@@ -259,14 +280,28 @@ class Qagent(object):
         RGBint = (red << 16) + (green << 8) + blue
         return RGBint
 
+
     def rgb2gray(self,rgb):
         return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
+
+    def resize(self, frame):
+        frame = imresize(frame, (84, 96))
+        # remove 12px from right, because we can go all the way left but not all the way right
+        return frame[:, 0:84]
+
+
     def _prepro(self, state):
         "Reshape for (1, DIM) as input to Keras"
-        # state = self.getIfromRGB(state)
         state = self.rgb2gray(state)
+        state = self.resize(state)
+
+        # show input image
+        # plt.imshow(state)
+        # plt.gray()
+        # plt.show()
         return state.reshape((1,) + state.shape)
+
 
     def _update_statelist(self, state):
         """To store previous state en new state. Previous state is associated with the current reward"""
@@ -304,7 +339,6 @@ class Qagent(object):
 
         if np.random.uniform(0, 1) < self.eps: # Be greedy
             self.action = self.action_space.sample()
-
 
         elif info["Agent"]["policy"] == "hardmax":
             self.action = self.Qnetwork.best_action(new_state)
@@ -399,7 +433,6 @@ class MarioPlotter(object):
         self.cum_rewards = [0]
         self.avg_qs = [0]
 
-
         # initialise the plot with loaded params from a previous model, if given
         if deaths >= plot_per_x_deaths:
             for death_n in range(1,deaths+1):
@@ -417,13 +450,11 @@ class MarioPlotter(object):
 
         # Make the cumulative reward plots
         self.ax1 = self.fig.add_subplot(121)
-
         self.ax1.set_ylabel("Average cumulative reward per " + str(plot_per_x_deaths) + " deaths" )
         self.ax1.set_xlabel("Death #")
 
         # For live plotting
         self.nowplot, = self.ax1.plot(self.deaths,self.cum_rewards, 'r-')
-
 
         # For Q value
         self.ax2 = self.fig.add_subplot(122)
@@ -433,7 +464,7 @@ class MarioPlotter(object):
 
         # For live plotting
         # self.nowplot2, = self.ax2.plot(range(1,deaths+1),self.avg_qs, 'b-')
-        self.nowplot2, = self.ax2.plot(self.deaths,self.avg_qs, 'b-')
+        self.nowplot2, = self.ax2.plot(self.deaths, self.avg_qs, 'b-')
 
         self.fig.canvas.draw()
         plt.show(block=False)
@@ -454,17 +485,13 @@ class MarioPlotter(object):
         self.ax1.relim()
         self.ax1.autoscale_view(True,True,True)
 
-
-         #Q values
+        # Q values
         self.avg_qs.append(avg_q)
 
-        print(np.shape(self.deaths))
-        print(np.shape(self.avg_qs))
         # Update input
         # self.nowplot2.set_xdata(range(1,deaths+1))
         self.nowplot2.set_xdata(self.deaths)
         self.nowplot2.set_ydata(self.avg_qs)
-
 
         # Live plot
         self.ax2.relim()
@@ -482,7 +509,7 @@ info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v1",
+    "Version" : "v2",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
@@ -491,8 +518,8 @@ info = {
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : "ss", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "ss", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "t", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "t", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
@@ -517,8 +544,7 @@ avg_q_values = []
 
 # SS params
 deaths, iter, avg_q_values, cum_rewards, agent = init_params(info, agent)
-# print ("avg_q_values:", avg_q_values)
-Plotter = MarioPlotter(cum_rewards,avg_q_values, deaths, plot_per_x_deaths)
+Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, plot_per_x_deaths)
 
 
 try:
@@ -534,7 +560,7 @@ try:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
             cum_reward += reward
-            avg_q.append(agent.Qnetwork.best_Qvalue)
+            avg_q += [0] if info["Agent"]["type"] == 0 else [agent.Qnetwork.best_Qvalue] # makes the plot work for both random and deep RL agent
             print("Iter: {} | Reward: {} | Run cumulative reward: {} | Deaths: {}".format(iter, reward, cum_reward, deaths))
             iter += 1
 
@@ -545,14 +571,14 @@ try:
                 if deaths % plot_per_x_deaths == 0:
                     # calc avg reward from last plot_per_x_deaths saved deaths
                     avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
-                    Plotter(cum_reward,np.mean(avg_q), deaths) # Add death to plot
+                    Plotter(cum_reward, np.mean(avg_q), deaths) # Add death to plot
 
             # Stops the game
             if done:
                 print ("Done")
-                print ("Avg q values:", avg_q_values)
                 cum_rewards.append(cum_reward)
                 avg_q_values.append(np.mean(avg_q))
+                print ("Avg q values:", avg_q_values)
                 env.close()
                 break
 
@@ -564,7 +590,7 @@ except Exception as e:
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
 finally:
     # Close the env and write model / result info to disk
-    if info['SaveModel']:
+    if info['SaveModel'] and info["Agent"]["type"] == 1:
         agent.save_model(info['SaveModel'])
         save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards)
     if env:
