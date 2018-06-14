@@ -9,13 +9,13 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # Todo:
 - plotting
-    - reward by trial (average of 5)
-    - average Q value
-    - load params of previous run and include in plot
+    + reward by trial (average of 5)
+    + average Q value
+    + load params of previous run and include in plot
     - run for 5 million iterations or so
 - reward =
     - paper -> distance to the right + total game score. Primary = get to finish. Second=get high score
-    - seperate reward for get live, finish level, loose live
+    - separate reward for get live, finish level, loose live
     - reward distance^2 * lvl, lvl complete bonus, death
     - fast moving right / left. Low negative reward for dying? https://github.com/aleju/mario-ai
 - actions:
@@ -24,6 +24,8 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
     - multithreading?
     - https://github.com/Naereen/gym-nes-mario-bros/blob/master/src/run-mario.py
 - network adaptations:
+    - exploration vs exploitation
+    - save / load replay memory?
     - choose_action > env.step > learn
     - (Double) deep Q-learning https://github.com/Naereen/gym-nes-mario-bros/tree/master/src/dqn / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
     - Ours 128 -> 64 > 32 > 16. Theirs 32 > 64 > 64 ? Check different architectures.

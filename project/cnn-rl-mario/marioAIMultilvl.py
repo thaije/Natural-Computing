@@ -8,7 +8,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Reshape
 from keras.layers.convolutional import Convolution2D
 from keras import backend as K
-import random, h5py, os.path, pickle, traceback, sys
+import random, h5py, os.path, pickle, traceback, sys, copy
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
@@ -64,7 +64,7 @@ class Qnetwork:
         # Model network function
         self.model = self._build_model(env)
 
-        if info['LoadModel'] != "False":
+        if info['LoadModel']:
             self.load_model(info['LoadModel'])
 
 
@@ -194,8 +194,6 @@ class Qnetwork:
         self.model.train_on_batch(X, Y)
 
 
-
-
     def best_action(self, state):
         "Gets best action based on current state"
         X = state
@@ -216,7 +214,7 @@ class Qagent(object):
     def __init__(self, env, info):
         self.info = info
         self.action_space = env.action_space
-
+        self.q_values = [] # used for plotting
 
         self.Qnetwork = Qnetwork(env, info)
 
@@ -257,6 +255,7 @@ class Qagent(object):
 
     def act(self, state, reward, done):
         state = self._prepro(state)
+        self.q_values = self.Qnetwork.action_probs(state)
 
         self._update_statelist(state)
         if self.start: # If first iter then there's no history to learn from
@@ -274,7 +273,8 @@ class Qagent(object):
         # Check for greedy
         self.eps = np.exp(-self.eps_decay * self.iter)
 
-        if self.eps < self.info["Agent"]["eps_min"]: self.eps = self.info["Agent"]["eps_min"] # Make sure to maintain a minimum greediness
+        if self.eps < self.info["Agent"]["eps_min"]:
+            self.eps = self.info["Agent"]["eps_min"] # Make sure to maintain a minimum greediness
 
         if np.random.uniform(0, 1) < self.eps: # Be greedy
             self.action = self.action_space.sample()
@@ -290,7 +290,6 @@ class Qagent(object):
                 self.action = self.action_space.sample()
             else:
                 self.action = np.random.choice(len(probs[0]), p=probs[0], replace=False)
-
 
         self.iter +=1
         return self.action
@@ -317,13 +316,12 @@ class Memory:
     def _update_memory(self):
         # if len(self.state_memory) > self.memory_info["size"]:
         if len(self.state_memory) > self.replay_info["memory"]:
-
-
             del self.state_memory[0]
             del self.action_memory[0]
             del self.reward_memory[0]
 
         self.cur_size = len(self.state_memory)
+
     def append_to_memory(self, state, state_next, action, reward):
         self.state_memory.append(state)
         self.state_next_memory = state_next
@@ -342,62 +340,106 @@ def init_level(info):
 
     env = gym_super_mario_bros.make(info['Game'] + "-" + str(world) + "-" + str(lvl) + "-" + info['Version'])
 
-    outdir = '/tmp/random-agent-results'
+    # outdir = '/tmp/random-agent-results'
     # env = wrappers.Monitor(env, directory=outdir, force=True) # this line disables closing
     # env.seed(0)
-
     return env
 
 
 # safe deaths and iter
-def save_model_params(info, deaths, iter):
-    with open("models/" + info['SaveModel'] + "_params", 'wb') as fp:
-        pickle.dump([deaths, iter], fp)
+def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards):
+    with open("models/" + filename + "_params", 'wb') as fp:
+        pickle.dump([deaths, iter, avg_q_values, cum_rewards], fp)
 
 
 
 # load default params, or from loaded model if defined
 def init_params(info, agent):
-    if not info['LoadModel'] or not os.path.isfile("models/" + info['SaveModel'] + "_params") or info['LoadModel']=="False":
-        return 0, 0, agent
+    if not info['LoadModel'] or not os.path.isfile("models/" + info['LoadModel'] + "_params"):
+        return 0, 0, [], [], agent
 
     # read in params from loaded model
-    with open ("models/" + info['SaveModel'] + "_params", 'rb') as fp:
-        [deaths, iter] = pickle.load(fp)
+    with open ("models/" + info['LoadModel'] + "_params", 'rb') as fp:
+        [deaths, iter, avg_q_values, cum_rewards] = pickle.load(fp)
         agent.iter = iter
-        return deaths, iter, agent
+        return deaths, iter, avg_q_values, cum_rewards, agent
 
 
 
 class MarioPlotter(object):
-    def __init__(self):
-        self.deaths = 0
-        self. distances = []
+    def __init__(self, cum_rewards, deaths, plot_per_x_deaths):
+        self.deaths = [0]
+        self.cum_rewards = [0]
+
+        # initialise the plot with loaded params from a previous model, if given
+        if deaths >= plot_per_x_deaths:
+            for death_n in range(1,deaths+1):
+                if death_n % plot_per_x_deaths == 0:
+                    self.deaths.append(death_n)
+                    # rewards are saved per death, we want to average over plot_per_x_deaths deaths
+                    cum_reward = np.sum(cum_rewards[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    print ("Calculated cum_reward:", cum_reward)
+                    self.cum_rewards.append(cum_reward)
 
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111)
 
-        self.fig.suptitle("Mario statistics")
-        self.ax.set_ylabel("Distance")
+        self.fig.suptitle("Mario avg cumulative reward")
+        self.ax.set_ylabel("Average cumulative reward per " + str(plot_per_x_deaths) + " deaths" )
         self.ax.set_xlabel("Death #")
 
         # For live plotting
-        self.nowplot, = self.ax.plot([0],[0], 'r-')
+        self.nowplot, = self.ax.plot(self.deaths,self.cum_rewards, 'r-')
 
         self.fig.canvas.draw()
         plt.show(block=False)
 
 
-    def __call__(self, dist):
-        "Updates the plot"
+    def __call__(self, cum_reward, deaths):
+        """Updates the plot"""
 
         # Set params
-        self.deaths += 1
-        self.distances.append(dist)
+        self.deaths.append(deaths)
+        self.cum_rewards.append(cum_reward)
 
         # Update input
-        self.nowplot.set_xdata(range(1,1+self.deaths))
-        self.nowplot.set_ydata(self.distances)
+        self.nowplot.set_xdata(self.deaths)
+        self.nowplot.set_ydata(self.cum_rewards)
+
+        # Live plot
+        self.ax.relim()
+        self.ax.autoscale_view(True,True,True)
+        self.fig.canvas.draw()
+
+
+class QPlotter(object):
+    def __init__(self, avg_qs, deaths):
+        self.deaths = deaths
+        self.avg_qs = copy.copy(avg_qs)
+
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+        self.fig.suptitle("Mario avg Q value")
+        self.ax.set_ylabel("Average Q value" )
+        self.ax.set_xlabel("Death #")
+
+        # For live plotting
+        self.nowplot, = self.ax.plot(range(1,deaths+1),self.avg_qs, 'r-')
+        self.fig.canvas.draw()
+        plt.show(block=False)
+
+
+    def __call__(self, avg_q, deaths):
+        """Updates the plot"""
+
+        # Set params
+        self.deaths = deaths
+        self.avg_qs.append(avg_q)
+
+        # Update input
+        self.nowplot.set_xdata(range(1,deaths+1))
+        self.nowplot.set_ydata(self.avg_qs)
 
         # Live plot
         self.ax.relim()
@@ -406,27 +448,24 @@ class MarioPlotter(object):
 
 
 
-
-
-
-
 # The actual code
-N_iters_explore = 40000#200000
+N_iters_explore = 40000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1],
+    "Worlds" : [1,2,3],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v2",
+    "Version" : "v1",
     "Plottyplot" : True,
+    "Plot_avg_reward_nruns" : 4, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Predict_future_n": {"size" : 6},
     "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.1, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : "False", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "False", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "test", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "test", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
@@ -443,18 +482,17 @@ episode_count = 100
 reward = 0
 done = False
 
-
 # save runs for plot
-total_iter = []
-run_iter = []
-distances = []
-cumu_rewards = []
+cum_reward = 0   # one reward
+cum_rewards = [] # save the cum rewards of all runs
+plot_per_x_deaths = info["Plot_avg_reward_nruns"] # to smooth the graph plot the average cum_reward of the last x deaths
+avg_q_values = []
 
 # SS params
-reward_run = []
-deaths, iter, agent = init_params(info, agent)
-
-Plotter = MarioPlotter()
+deaths, iter, avg_q_values, cum_rewards, agent = init_params(info, agent)
+# print ("avg_q_values:", avg_q_values)
+DeathPlotter = MarioPlotter(cum_rewards, deaths, plot_per_x_deaths)
+QPlotter = QPlotter(avg_q_values, deaths)
 
 try:
     while True:
@@ -462,54 +500,48 @@ try:
         state = env.reset()
 
         # run specific vars
-        start_iter = iter
-        cumu_reward = 0
+        cum_reward = 0
+        avg_q = [] # list of avg q values for current state
 
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
-
+            cum_reward += reward
+            avg_q.append(np.mean(agent.q_values)) # keep track of average q value
+            print("Iter: {} | Reward: {} | Run cumulative reward: {} | Deaths: {}".format(iter, reward, cum_reward, deaths))
+            iter += 1
 
             if reward < -50:
                 print ("------DEAD!------")
-                env.close()
-                env = init_level(info)
-                env.reset()
-
-                curr_dist = np.sum(reward_run) - reward
-
-                Plotter(curr_dist) # Add death to plot
-
-                reward_run = []
-                reward_run.append(0)
-
                 deaths += 1
 
+                # print ("avg_q:", avg_q_values)
+                QPlotter(np.mean(avg_q), deaths)
 
-            else:
-                reward_run.append(reward)
-                curr_dist = np.sum(reward_run)
-            iter += 1
-
-            print("Iter: {} | Reward: {} | Current distance: {} | Deaths: {}".format(iter, reward, curr_dist, deaths))
+                if deaths % plot_per_x_deaths == 0:
+                    # calc avg reward from last plot_per_x_deaths saved deaths
+                    avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
+                    DeathPlotter(cum_reward, deaths) # Add death to plot
 
             # Stops the game
             if done:
+                print ("Done")
+                # print ("Avg q values:", avg_q_values)
+                cum_rewards.append(cum_reward)
+                avg_q_values.append(np.mean(avg_q))
                 env.close()
-                cumu_rewards.append(cumu_reward)
-                run_iter.append(iter - start_iter)
-                distances.append(cumu_reward)
-                total_iter.append(iter)
                 break
+
+
 except KeyboardInterrupt:
-    print ("Interrupted blsy user, shutting down")
+    print ("Interrupted by user, shutting down")
 except Exception as e:
     traceback.print_exc()
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
 finally:
     # Close the env and write model / result info to disk
+    if info['SaveModel']:
+        agent.save_model(info['SaveModel'])
+        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards)
     if env:
         env.close()
-    if info['SaveModel'] != "False":
-        agent.save_model(info['SaveModel'])
-        save_model_params(info, deaths, iter)
