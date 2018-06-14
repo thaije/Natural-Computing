@@ -518,7 +518,7 @@ if __name__ == '__main__':
 
 	env = gym_super_mario_bros.make('SuperMarioBros-v2')
 
-	inp_size = [150, 180, 1]
+	inp_size = [224, 256, 1]#[150, 180, 1]
 	out_size = 14 
 	population = 300
 	delta_disjoint = 2.0
