@@ -32,6 +32,8 @@ def calc_reward(old_reward, done):
         new_reward = -1
     elif old_reward <-8 and old_reward > -50: # If move to left fast
         new_reward = -1.5
+    else: # Also dead?
+        new_reward = -3
 
     return new_reward
 
@@ -504,7 +506,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 1
+N_iters_explore = 10000
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -515,12 +517,12 @@ info = {
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Predict_future_n": {"size" : 4},
-    "Replay": {"memory": 100000, "batchsize": 4},
+    "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
    "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : False # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : "SS_test" # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
