@@ -18,20 +18,20 @@ import matplotlib.pyplot as plt
 
 def calc_reward(old_reward, done):
     "Calculates new reward not only based on distance"
-    if done: # If level finished
+    if done and old_reward <= -50: # If dead
+        new_reward = -3
+    elif done: # If level finished
         new_reward = 2
     elif old_reward >= 8: # If speed up fast
         new_reward = 1
     elif old_reward > 0: # If move to right
         new_reward = 0.5
-    elif old_reward == 0: # If stand still slight punishment
+    elif old_reward == 0: # If stand still slight punishment BUG walking left against the wall also counts as standing still
         new_reward = -0.1
     elif old_reward < 0 and old_reward >= -8: # If move to left
         new_reward = -1
     elif old_reward <-8 and old_reward > -50: # If move to left fast
         new_reward = -1.5
-    elif old_reward <= -50: # If dead
-        new_reward = -3
 
     return new_reward
 
@@ -315,8 +315,6 @@ class Qagent(object):
 
     def act(self, state, reward, done):
         state = self._prepro(state)
-        reward = calc_reward(reward, done)
-
 
         self._update_statelist(state)
         if self.start: # If first iter then there's no history to learn from
@@ -503,7 +501,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 1
+N_iters_explore = 100000
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -559,12 +557,13 @@ try:
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
+            reward = calc_reward(reward, done)
             cum_reward += reward
             avg_q += [0] if info["Agent"]["type"] == 0 else [agent.Qnetwork.best_Qvalue] # makes the plot work for both random and deep RL agent
-            print("Iter: {} | Reward: {} | Run cumulative reward: {} | Deaths: {}".format(iter, reward, cum_reward, deaths))
+            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {}".format(iter, reward, cum_reward, deaths))
             iter += 1
 
-            if reward < -50:
+            if reward <= -3:
                 print ("------DEAD!------")
                 deaths += 1
 
