@@ -138,8 +138,8 @@ class Qnetwork:
         # model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
         # model.add(Dense(env.action_space.n, activation="linear"))
 
-
-        model.compile(loss="mean_squared_error", optimizer="Adam")
+        Adam = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+        model.compile(loss="mean_squared_error", optimizer=Adam)
         model.summary()
         return model
 
@@ -216,6 +216,9 @@ class Qnetwork:
                 Q_target[0][action_first] = reward_0
 
                 loss_0 = self.learning_rate * (Q_target - Q)
+                if loss_0[0][action_first] >= 0 and loss_0[0][action_first] <= 1:
+                    loss_0[0][action_first] = 1
+
 
 
 
@@ -242,7 +245,13 @@ class Qnetwork:
         Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
 
         loss = Q_target - Q
+        if loss[0][action] >= 0 and loss[0][action] <= 1:
+            loss[0][action] = 1
+
+
+
         Y = self.learning_rate * loss
+
 
         self.model.train_on_batch(X, Y)
 
@@ -508,7 +517,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 10000
+N_iters_explore = 1
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -518,12 +527,12 @@ info = {
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
-    "Predict_future_n": {"size" : 2},
+    "Predict_future_n": {"size" : 7},
     "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "SS_test", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
    "SaveModel" : "SS_test" # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
