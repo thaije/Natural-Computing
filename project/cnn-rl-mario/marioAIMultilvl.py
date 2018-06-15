@@ -244,6 +244,8 @@ class Qnetwork:
         Q_target = np.copy(Q)
         Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
 
+        # print ("Current Q:", Q)
+        # print ("Q target:", Q_target)
         loss = Q_target - Q
         if loss[0][action] >= 0 and loss[0][action] <= 1:
             loss[0][action] = 1
@@ -522,7 +524,7 @@ info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1,2],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v2",
+    "Version" : "v1",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.99, "gamma": 0.9},
@@ -532,7 +534,7 @@ info = {
               "policy": "hardmax" #softmax
                },
    "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : False # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : False, # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
@@ -578,6 +580,8 @@ try:
             print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {}".format(iter, reward, cum_reward, deaths))
             iter += 1
 
+            # print("Best avg_q:", avg_q)
+
             if reward <= -3:
                 print ("------DEAD!------")
                 deaths += 1
@@ -594,6 +598,11 @@ try:
                 avg_q_values.append(np.mean(avg_q))
                 print ("Avg q values:", avg_q_values)
                 env.close()
+
+                # autosave model every 100k
+                if info['SaveModel'] and deaths % 100000 == 0:
+                    agent.save_model(info['SaveModel'] + "_" + str(deaths))
+                    save_model_params(info['SaveModel'] + "_" + str(deaths), deaths, iter, avg_q_values, cum_rewards)
                 break
 
 
