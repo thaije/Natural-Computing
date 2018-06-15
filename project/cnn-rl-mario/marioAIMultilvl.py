@@ -215,7 +215,9 @@ class Qnetwork:
                 Q_target = np.copy(Q)
                 Q_target[0][action_first] = reward_0
 
-                loss_0 = Q_target - Q
+                loss_0 = self.learning_rate * (Q_target - Q)
+
+
 
                 Y.append(loss_0)
                 X.append(state_0)
@@ -512,11 +514,11 @@ info = {
     "Game" : 'SuperMarioBros',
     "Worlds" : [1],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v2",
+    "Version" : "v1",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
-    "Predict_future_n": {"size" : 4},
+    "Predict_future_n": {"size" : 2},
     "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
