@@ -219,10 +219,8 @@ class Qnetwork:
                 if loss_0[0][action_first] >= 0 and loss_0[0][action_first] <= 1:
                     loss_0[0][action_first] = 1
 
-
-
-
-                Y.append(loss_0)
+                Y_i = Q + loss_0
+                Y.append(Y_i)
                 X.append(state_0)
 
             X = np.squeeze(np.asarray(X))
@@ -249,8 +247,8 @@ class Qnetwork:
             loss[0][action] = 1
 
 
-
         Y = self.learning_rate * loss
+        Y = Q + Y
 
 
         self.model.train_on_batch(X, Y)
@@ -517,7 +515,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 1
+N_iters_explore = 10
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -526,13 +524,13 @@ info = {
     "Version" : "v1",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
-    "Network": {"learning_rate": 0.6, "gamma": 0.8},
-    "Predict_future_n": {"size" : 7},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9},
+    "Predict_future_n": {"size" : 3},
     "Replay": {"memory": 100000, "batchsize": 10},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : "SS_test", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
    "SaveModel" : "SS_test" # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
