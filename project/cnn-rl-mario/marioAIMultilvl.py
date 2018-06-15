@@ -123,7 +123,7 @@ class Qnetwork:
 
         model.add(Flatten())
         model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(env.action_space.n, activation="linear"))
+        model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
 
 
         # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
@@ -167,8 +167,11 @@ class Qnetwork:
 
         Dims = np.shape(statelist)
 
-        rewards = [(self.gamma ** i) * np.max(statelist[i]) for i in range(Dims[0])]
+        Qs = self.model.predict(np.squeeze(statelist))
+        rewards = np.max(Qs, axis=1)
         rewards[0] = reward_first
+        rewards = [(self.gamma ** i) * rewards[i] for i in range(Dims[0])]
+
 
         return np.sum(rewards)
 
@@ -179,7 +182,7 @@ class Qnetwork:
         if n_states_stored <= future_look_size:
             states = History.state_memory
             reward_first = History.reward_memory[0]
-            action_first = History.action_memory[0]
+            action_first = History.action_memorykernel_initializer="he_uniform"[0]
         else:
             idx = np.random.randint(n_states_stored - future_look_size)
             states = History.state_memory[idx:(idx + future_look_size)]
@@ -206,6 +209,7 @@ class Qnetwork:
                 reward_0 = self._get_reward(states, reward_first)
 
                 Q = self.model.predict(state_0)
+
                 Q_target = np.copy(Q)
                 Q_target[0][action_first] = reward_0
 
@@ -391,7 +395,6 @@ class Memory:
 
 
 
-
 # load a random world / level and return the env
 def init_level(info):
     world = random.choice(info['Worlds'])
@@ -501,7 +504,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 100000
+N_iters_explore = 1
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -512,12 +515,12 @@ info = {
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.6, "gamma": 0.8},
     "Predict_future_n": {"size" : 4},
-    "Replay": {"memory": 100000, "batchsize": 10},
+    "Replay": {"memory": 100000, "batchsize": 4},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : "t", # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "t", # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : False # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
