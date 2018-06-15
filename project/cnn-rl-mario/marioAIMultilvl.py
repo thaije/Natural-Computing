@@ -516,13 +516,13 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore =10000
+N_iters_explore = 10000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1],
+    "Worlds" : [1,2],
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v1",
+    "Version" : "v2",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.99, "gamma": 0.9},
@@ -532,7 +532,7 @@ info = {
               "policy": "hardmax" #softmax
                },
    "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : "SS_test" # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : False # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
