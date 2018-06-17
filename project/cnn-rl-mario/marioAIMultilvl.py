@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 def calc_reward(old_reward, done):
     "Calculates new reward not only based on distance"
-    if done and old_reward <= -50: # If dead
+    if done and old_reward <= -50: # If done but not dead (or timeout?)
         new_reward = -3
     elif done: # If level finished
         new_reward = 2
@@ -117,38 +117,34 @@ class Qnetwork:
 
 
         # Model from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-        model = Sequential()
-        model.add(Reshape(input_3D, input_shape=input_2D))
-        model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-
-        model.add(Flatten())
-        model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
+        # model = Sequential()
+        # model.add(Reshape(input_3D, input_shape=input_2D))
+        # model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        #
+        # model.add(Flatten())
+        # model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
 
 
         # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
-        # model = Sequential()
-        # model.add(Reshape(input_3D, input_shape=input_2D))
-        # model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        #
-        # model.add(Flatten())
-        # model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(env.action_space.n, activation="linear"))
+        model = Sequential()
+        model.add(Reshape(input_3D, input_shape=input_2D))
+        model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+
+        model.add(Flatten())
+        model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
+        model.add(Dense(env.action_space.n, activation="linear"))
 
         Adam = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
         model.compile(loss="mean_squared_error", optimizer=Adam)
         model.summary()
         return model
 
-    def save_model(self, filename):
-        # serialize model to JSON
-        # model_json = self.model.to_json()
-        # with open("models/" + filename + ".json", "w+") as json_file:
-        #     json_file.write(model_json)
 
+    def save_model(self, filename):
         # serialize weights to HDF5
         self.model.save_weights("models/" + filename + ".h5")
         print("Saved model to disk in model/" + filename)
@@ -279,16 +275,15 @@ class Qagent(object):
     def __init__(self, env, info):
         self.info = info
         self.action_space = env.action_space
-
         self.Qnetwork = Qnetwork(env, info)
 
-        self.start = 1
+        self.start = True
         self.iter = 0
         self.state_hist = []
         self.action = self.action_space.sample()
         self.eps_decay = self.info["Agent"]["eps_decay"]
 
-        self.History = Memory(info)
+        self.History = Memory(info) # replay memory
 
     def getIfromRGB(self, rgb):
         "RGB to integer converter"
@@ -306,7 +301,7 @@ class Qagent(object):
     def resize(self, frame):
         frame = imresize(frame, (84, 96))
         # remove 12px from right, because we can go all the way left but not all the way right
-        return frame[:, 0:84]
+        return frame[:, 12:96]
 
 
     def _prepro(self, state):
@@ -322,38 +317,45 @@ class Qagent(object):
 
 
     def _update_statelist(self, state):
-        """To store previous state en new state. Previous state is associated with the current reward"""
+        """To store previous state and new state. Previous state is associated with the current reward"""
+        # if we are just starting, just append the current state as history
         if self.start:
             self.state_hist.append(state)
             self.state_hist.append(state)
-            self.start = 0
         else:
             del self.state_hist[0]
             self.state_hist.append(state)
 
     def act(self, state, reward, done):
-        state = self._prepro(state)
 
+        # preprocess the state and save it to history
+        state = self._prepro(state)
         self._update_statelist(state)
-        if self.start: # If first iter then there's no history to learn from
+
+        # If first iter then there's no history to learn from
+        if self.start:
             self.action = self.action_space.sample()
             self.iter += 1
+            self.start = False
             return self.action
 
+        # save states in the replay memory
         old_state = self.state_hist[0]
         new_state = self.state_hist[1]
-
         self.History.append_to_memory(old_state, new_state, self.action, reward)
+
+        # train Q network on replay memory items
         self.Qnetwork.update(self.History)
 
-
-        # Check for greedy
+        # Update Greedy epsilon
         self.eps = np.exp(-self.eps_decay * self.iter)
 
+        # Make sure to maintain a minimum greediness
         if self.eps < self.info["Agent"]["eps_min"]:
-            self.eps = self.info["Agent"]["eps_min"] # Make sure to maintain a minimum greediness
+            self.eps = self.info["Agent"]["eps_min"]
 
-        if np.random.uniform(0, 1) < self.eps: # Be greedy
+        # Be greedy
+        if np.random.uniform(0, 1) < self.eps:
             self.action = self.action_space.sample()
 
         elif info["Agent"]["policy"] == "hardmax":
@@ -376,13 +378,12 @@ class Qagent(object):
         self.Qnetwork.save_model(filename)
 
 
-
+# The replay memory
 class Memory:
     def __init__(self, info):
         # Memory info
         self.memory_info = info["Predict_future_n"]
         self.replay_info = info["Replay"]
-
 
         self.state_memory = []
         self.state_next_memory = []
@@ -391,7 +392,7 @@ class Memory:
         self.cur_size = 0
 
     def _update_memory(self):
-        # if len(self.state_memory) > self.memory_info["size"]:
+        # Delete the oldest item if the replay memory becomes too big
         if len(self.state_memory) > self.replay_info["memory"]:
             del self.state_memory[0]
             del self.action_memory[0]
@@ -400,11 +401,13 @@ class Memory:
         self.cur_size = len(self.state_memory)
 
     def append_to_memory(self, state, state_next, action, reward):
+        # save previous state, action and reward
         self.state_memory.append(state)
-        self.state_next_memory = state_next
         self.action_memory.append(action)
         self.reward_memory.append(reward)
 
+        # save current state
+        self.state_next_memory = state_next
         self._update_memory()
 
 
@@ -423,22 +426,22 @@ def init_level(info):
 
 
 # safe deaths and iter
-def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards):
+def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter):
     with open("models/" + filename + "_params", 'wb') as fp:
-        pickle.dump([deaths, iter, avg_q_values, cum_rewards], fp)
+        pickle.dump([deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter], fp)
 
 
 
 # load default params, or from loaded model if defined
 def init_params(info, agent):
     if not info['LoadModel'] or not os.path.isfile("models/" + info['LoadModel'] + "_params"):
-        return 0, 0, [], [], agent
+        return 0, 0, [], [], agent, 0
 
     # read in params from loaded model
     with open ("models/" + info['LoadModel'] + "_params", 'rb') as fp:
-        [deaths, iter, avg_q_values, cum_rewards] = pickle.load(fp)
+        [deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter] = pickle.load(fp)
         agent.iter = iter
-        return deaths, iter, avg_q_values, cum_rewards, agent
+        return deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter
 
 
 
@@ -457,7 +460,7 @@ class MarioPlotter(object):
                     cum_reward = np.sum(cum_rewards[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
                     cum_Q = np.sum(avg_qs[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
                     self.avg_qs.append(cum_Q)
-                    print ("Calculated cum_reward:", cum_reward)
+                    # print ("Calculated cum_reward:", cum_reward)
                     self.cum_rewards.append(cum_reward)
 
         self.fig = plt.figure()
@@ -517,30 +520,53 @@ class MarioPlotter(object):
 
 
 
+# Google settings:
+# N_iters_explore = 1 000 000
+# eps_min: 0.1
+# Replay memory = 1 000 000
+# Total frames trained:  10 000 000
+# last 4 frames as input to same DNN
+
+# Our settings:
+# N_iters_explore = 500 000
+# eps_min: 0.15
+# memory: 10000
+# total frames trained: 500k?
+
+# Settings https://github.com/aleju/mario-ai
+# N_iters_explore = 400 000
+# eps_min: 0.1
+# memory: 250 000
+# total frames trained: 500k?
+# last 4 frames to seperate layer. Last framer higher resolution to other layer. Other layer for last 4 actions. Merge
+
 # The actual code
-N_iters_explore = 10000
+N_iters_explore = 1
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1,2],
-    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
-    "Version" : "v1",
+    "Worlds" : [2], # buizen, enemies, gaten
+    "Levels" : [2], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
+    "Version" : "v2",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
     "Network": {"learning_rate": 0.99, "gamma": 0.9},
     "Predict_future_n": {"size" : 3},
-    "Replay": {"memory": 100000, "batchsize": 2},
+    "Replay": {"memory": 250000, "batchsize": 4},
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
    "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : False, # False= no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "SaveModel" : False, # False = no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
 }
 
 
 
 # load random mario world/level
 env = init_level(info)
+random_levels = True
+if len(info["Worlds"]) == 1 and len(info["Levels"]) == 1:
+    init_random_lvl = False
 
 if info["Agent"]["type"] == 0:
     agent = RandomAgent(env.action_space)
@@ -550,6 +576,7 @@ else:
 episode_count = 100
 reward = 0
 done = False
+lvl_completed_counter = 0
 
 # save runs for plot
 cum_reward = 0   # one reward
@@ -558,13 +585,14 @@ plot_per_x_deaths = info["Plot_avg_reward_nruns"] # to smooth the graph plot the
 avg_q_values = []
 
 # SS params
-deaths, iter, avg_q_values, cum_rewards, agent = init_params(info, agent)
+deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter = init_params(info, agent)
 Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, plot_per_x_deaths)
 
 
 try:
     while True:
-        env = init_level(info)
+        if init_random_lvl:
+            env = init_level(info)
         state = env.reset()
 
         # run specific vars
@@ -577,10 +605,8 @@ try:
             reward = calc_reward(reward, done)
             cum_reward += reward
             avg_q += [0] if info["Agent"]["type"] == 0 else [agent.Qnetwork.best_Qvalue] # makes the plot work for both random and deep RL agent
-            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {}".format(iter, reward, cum_reward, deaths))
+            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {} | Lvl completions: {}".format(iter, reward, cum_reward, deaths, lvl_completed_counter))
             iter += 1
-
-            # print("Best avg_q:", avg_q)
 
             if reward <= -3:
                 print ("------DEAD!------")
@@ -591,18 +617,21 @@ try:
                     avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
                     Plotter(cum_reward, np.mean(avg_q), deaths) # Add death to plot
 
+            # autosave model every 1000deaths
+            if info['SaveModel'] and iter % 100000 == 0:
+                agent.save_model(info['SaveModel'] + "_" + str(iter))
+                save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
+
             # Stops the game
             if done:
-                print ("Done")
                 cum_rewards.append(cum_reward)
                 avg_q_values.append(np.mean(avg_q))
-                print ("Avg q values:", avg_q_values)
-                env.close()
-
-                # autosave model every 100k
-                if info['SaveModel'] and deaths % 100000 == 0:
-                    agent.save_model(info['SaveModel'] + "_" + str(deaths))
-                    save_model_params(info['SaveModel'] + "_" + str(deaths), deaths, iter, avg_q_values, cum_rewards)
+                # print ("Avg q values:", avg_q_values)
+                if init_random_lvl:
+                    env.close()
+                if reward > -3:
+                    lvl_completed_counter += 1
+                print ("Done.)
                 break
 
 
@@ -615,6 +644,6 @@ finally:
     # Close the env and write model / result info to disk
     if info['SaveModel'] and info["Agent"]["type"] == 1:
         agent.save_model(info['SaveModel'])
-        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards)
+        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
     if env:
         env.close()

@@ -13,11 +13,13 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
     + average Q value section 5 https://arxiv.org/pdf/1312.5602v1.pdf
     + load params of previous run and include in plot
     - run for 5 million iterations or so
+    - fix bg fceux
 - reward =
     - paper -> distance to the right + total game score. Primary = get to finish. Second=get high score
     + separate reward for get live, finish level, loose live
     + reward distance^2 * lvl, lvl complete bonus, death
     + fast moving right / left. Low negative reward for dying? https://github.com/aleju/mario-ai
+    - reward finished level / time out same?
 - actions:
     - change env to minimize action space https://github.com/Naereen/gym-nes-mario-bros/blob/master/src/nesgym/mario_bros_env.py
 - run multiple games in parallel
@@ -32,6 +34,21 @@ https://github.com/Kautenja/gym-super-mario-bros#individual-levels
 
 # notes
 - trainen op lvl 1/3, testen lvl 2
+- gets stuck on bonus lvl, q value drop down
+- add ingame score for motivation to kill enemies / learn what enemies are
+- we use frame skipping
+- enemies, main character, surface can have same colour
+- start and pavement same colour
+- Use spatial transformer to transpose image to self / mario? https://github.com/aleju/mario-ai
+
+algorithm:
+Input = grey 84x84 area (does not need to be square), stack of last 4 frames + last 4 actions?
+
+
+Recent experiences are saved in a replay memory. An experience = Dataset D of pooled experiences e_t = (state_t, action_t, reward_t, state_t+1).
+Q learning updates or done on random experiences from this memory, to remove correlation between frames (go left, only train on go left. Instead smooth actions).
+Normally for Q learning, an action-value function is estimated for every sequence. But now many sequences possible -> create approximate estimator to generalize over sequences -> neural network
+Used RMSprop gradient descent with minibatches of 32 / or MSE?
 
 
 # Levels
