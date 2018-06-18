@@ -516,7 +516,7 @@ N_iters_explore = 150000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [1], # buizen, enemies, gaten
+    "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
     "Plottyplot" : True,
@@ -524,9 +524,9 @@ info = {
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 50000, "predict_future_n": 1},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 2500, "predict_future_n": 1},
     "Replay": {"memory": 250000, "batchsize": 32}, # train on {batchsize} replay experiences per iteration
-    "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.15, "eps_decay": (1.0-0.15)/N_iters_explore,
+    "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
    "LoadModel" : "t", # False = no loading, filename = loading (e.g. "test_model")
