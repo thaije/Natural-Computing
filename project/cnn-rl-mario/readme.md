@@ -70,7 +70,7 @@ So you can't have two different worlds/levels running in the emulator from the s
 # notes
 - Get action for current state:
     - Give 4 frames as input (current + 3 history)
-    - Also give last x actions?
+    - Also give last x actions? no
     - Get list of Q values for each action
     - Use best one for next state
     - Save experience in replay memory
@@ -87,16 +87,26 @@ So you can't have two different worlds/levels running in the emulator from the s
 - Difference = loss (automatically calculated in model)
 
 
-history = for spotting movement (strided?). 
+history = for spotting movement (strided?).
 Training on replay memory = to remove correlation between frames (go left, only train on go left. Instead smooth actions).
 
 Normally for Q learning, an action-value function is estimated for every sequence. But now many sequences possible -> create approximate estimator to generalize over sequences -> neural network
 
 Difference:
-Prediction is known for 1 state/action/reward/state combo. The “correct” Q value of other actions in that state are not known, so keep them the same in the prediction to have them not affect the model. As such, calc the loss between Q_predicted and Q_predicted with corrected reward for the known action. 
+Prediction is known for 1 state/action/reward/state combo. The “correct” Q value of other actions in that state are not known, so keep them the same in the prediction to have them not affect the model. As such, calc the loss between Q_predicted and Q_predicted with corrected reward for the known action.
 
-Only use last 4 frames as input: 
+Only use last 4 frames as input:
 The main drawback of this type of architecture is that a separate forward pass is required to compute the Q-value of each action, resulting in a cost that scales linearly with the number of actions. We instead use an architecture in which there is a separate output unit for each possible action, and only the state representation is an input to the neural network. The outputs correspond to the predicted Q-values of the individual action for the input state.
 
-4 frames, one prediction: 
-https://keras.io/layers/wrappers/
+# discussion points:
+- Colours:
+    - Mario not very distinctive -> give other colour?
+    - Enemies same colour as surface
+    - As such -> better in swim lvl? enemies / mario / surface etc distinct colour
+- architecture
+
+# todo:
+- steven reward func
++ normalize
++ get best action
+- q value mask?
