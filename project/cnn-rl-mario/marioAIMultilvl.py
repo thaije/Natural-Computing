@@ -238,6 +238,7 @@ class Qagent(object):
         self.state_hist = []
         self.action = self.action_space.sample()
         self.eps_decay = self.info["Agent"]["eps_decay"]
+        self.eps = self.info["Agent"]["eps_start"]
 
         self.History = Memory(info) # replay memory
 
@@ -300,11 +301,13 @@ class Qagent(object):
         self.Qnetwork.replay(self.History)
 
         # Update Greedy epsilon
-        self.eps = np.exp(-self.eps_decay * self.iter)
+        if self.iter > self.info["Network"]["warmup"]:
+            self.eps = self.info["Agent"]["eps_start"] - (self.eps_decay * (self.iter - self.info["Network"]["warmup"]) )
 
-        # Make sure to maintain a minimum greediness
-        if self.eps < self.info["Agent"]["eps_min"]:
-            self.eps = self.info["Agent"]["eps_min"]
+            # Make sure to maintain a minimum greediness
+            if self.eps < self.info["Agent"]["eps_min"]:
+                self.eps = self.info["Agent"]["eps_min"]
+
 
         ### Generate a new action for the current state
         # Be greedy
@@ -400,7 +403,7 @@ def init_env(info):
     env = init_level(info)
     random_levels = True
     if len(info["Worlds"]) == 1 and len(info["Levels"]) == 1:
-        init_random_lvl = False
+        random_levels = False
 
     if info["Network"]["warmup"] < 0 or info["Network"]["input_frames"] < 1 or info["Network"]["predict_future_n"] < 1:
         print ("Error, invalid parameter value")
@@ -509,7 +512,7 @@ class MarioPlotter(object):
 # gamma = 0.99
 
 # The actual code
-N_iters_explore = 100000
+N_iters_explore = 150000
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -521,19 +524,19 @@ info = {
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 1000, "predict_future_n": 1},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 50000, "predict_future_n": 1},
     "Replay": {"memory": 250000, "batchsize": 32}, # train on {batchsize} replay experiences per iteration
-    "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
+    "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.15, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
-   "LoadModel" : False, # False = no loading, filename = loading (e.g. "test_model")
-   "SaveModel" : False, # False = no saving, filename = saving (e.g. "test_model")
+   "LoadModel" : "t", # False = no loading, filename = loading (e.g. "test_model")
+   "SaveModel" : "t", # False = no saving, filename = saving (e.g. "test_model")
 }
 
 
 
 # load mario lvl and init agent
-env, random_levels, agent = init_env(info)
+env, mult_lvls, agent = init_env(info)
 
 reward = 0
 done = False
@@ -550,7 +553,7 @@ Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, plot_per_x_deaths)
 
 try:
     while True:
-        if random_levels:
+        if mult_lvls:
             env = init_level(info)
         state = env.reset()
 
@@ -563,8 +566,13 @@ try:
             state, reward, done, _ = env.step(action)
             reward = calc_reward(reward, done)
             cum_reward += reward
-            avg_q += [0] if info["Agent"]["type"] == 0 else [agent.Qnetwork.best_Qvalue] # makes the plot work for both random and deep RL agent
-            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {} | Lvl completions: {}".format(iter, reward, cum_reward, deaths, lvl_completed_counter))
+
+            # makes the plot work for both random and deep RL agent
+            if info["Agent"]["type"] == 0 or iter < info["Network"]["warmup"]:
+                avg_q += [0]
+            else:
+                avg_q += [agent.Qnetwork.best_Qvalue]
+            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {} | Lvl completions: {} | Eps: {:0.2f}".format(iter, reward, cum_reward, deaths, lvl_completed_counter, agent.eps))
             iter += 1
 
             if reward <= -3:
@@ -585,7 +593,7 @@ try:
             if done:
                 cum_rewards.append(cum_reward)
                 avg_q_values.append(np.mean(avg_q))
-                if init_random_lvl:
+                if mult_lvls:
                     env.close()
                 if reward > -3:
                     lvl_completed_counter += 1
