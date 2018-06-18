@@ -38,7 +38,6 @@ def calc_reward(old_reward, done):
     return new_reward
 
 
-
 class RandomAgent(object):
     """The world's simplest agent!"""
     def __init__(self, action_space):
@@ -52,6 +51,8 @@ class Qnetwork:
     def __init__(self, env, info):
 
         # Training Parameters
+        self.training = info["Training"]
+        self.plot_q_pred_img = info["Plot_imgs_predicted_q"]
         self.network_info = info["Network"]
         self.replay_info = info["Replay"]
         self.prev_states_count = self.network_info["input_frames"] - 1 # minus current frame
@@ -67,6 +68,7 @@ class Qnetwork:
 
         # Extra
         self.best_Qvalue = 0
+
 
 
     def _build_model(self, env):
@@ -99,7 +101,7 @@ class Qnetwork:
         optim = RMSprop(lr=0.00025, rho=0.95, epsilon=0.01)
         # optim = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
         model = Model(input=frames_input, output=output_layer)
-        model.compile(loss="mse", optimizer=optim)
+        model.compile(loss=huber_loss, optimizer=optim)
         model.summary()
 
         return model
@@ -158,6 +160,38 @@ class Qnetwork:
 
         return reward, action, state, prev_states, future_states
 
+    def _plot_prediction(self, Q_target, Qs_predicted, action, state_with_prevs):
+        actions_index = [
+            'NOP',
+            'Up',
+            'Down',
+            'Left',
+            'Right',
+            'Left + A',
+            'Left + B',
+            'Left + A + B',
+            'Right + A',
+            'Right + B',
+            'Right + A + B',
+            'A',
+            'B',
+            'A + B'
+        ]
+
+        print ("Q target vs Q predicted:", Q_target, Qs_predicted[0][action])
+        print ("Shape states:", np.shape(state_with_prevs))
+        print ("Action:", action, " = ", actions_index[action])
+
+        # plot pictures
+        fig = plt.figure(figsize=(20, 8))
+        fig.suptitle("Last " + str(self.prev_states_count + 1) + " frames with predicted and target Q val for action")
+        for i in range(1, self.prev_states_count + 2):
+            img = np.reshape(state_with_prevs[0][i-1], (84,96))
+            fig.add_subplot(1, self.prev_states_count + 1, i)
+            plt.imshow(img)
+            plt.gray()
+        plt.show()
+
 
     def replay(self, History):
         """ Train model on some random replayed experiences """
@@ -181,6 +215,10 @@ class Qnetwork:
                 # predict the Q value of the current frame with last x previous frames
                 Qs_predicted = self.model.predict(state_with_prevs)
 
+                # plot the x history frames with predicted Q, target Q, and action, to see what prediction is like
+                if self.plot_q_pred_img:
+                    self._plot_prediction(Q_target, Qs_predicted, action, state_with_prevs)
+
                 # We feed the network the correct Q value for the state-action pair
                 # we know / calculated. The other state-action Q values are kept the
                 # same as Q_predicted so they don't influence the network
@@ -201,9 +239,9 @@ class Qnetwork:
     def best_action(self, state, history):
         """ Gets best action based on current state"""
 
-        # Wait untill we have atleast x frames in the replay memory before training the network (warmup)
+        # Wait untill we have atleast x frames in the replay memory before training the network (warmup) if we are in training mode
         # We also need atleast x history frames to get a prediction from the CNN
-        if history.cur_size < self.prev_states_count + self.network_info["warmup"]:
+        if (history.cur_size < self.prev_states_count) or (history.cur_size < self.network_info["warmup"] and self.training):
             return -1
 
         # concatenate the last frame with x history frames
@@ -224,6 +262,19 @@ class Qnetwork:
         Q[Q <0] = 0
 
         return (Q/np.sum(Q))
+
+
+# From https://becominghuman.ai/beat-atari-with-deep-reinforcement-learning-part-2-dqn-improvements-d3563f665a2c
+def huber_loss(a, b, in_keras=True):
+    """ Computes the Huber Loss: MSE for low values and MAE for large values """
+    error = a - b
+    quadratic_term = error*error / 2
+    linear_term = abs(error) - 1/2
+    use_linear_term = (abs(error) > 1.0)
+    if in_keras:
+        # Keras won't let us multiply floats by booleans, so we explicitly cast the booleans to floats
+        use_linear_term = K.cast(use_linear_term, 'float32')
+    return use_linear_term * linear_term + (1-use_linear_term) * quadratic_term
 
 
 class Qagent(object):
@@ -298,7 +349,8 @@ class Qagent(object):
         self.History.append_to_memory(old_state, new_state, self.action, reward)
 
         ### Train Q network on replay memory items
-        self.Qnetwork.replay(self.History)
+        if self.info["Training"]:
+            self.Qnetwork.replay(self.History)
 
         # Update Greedy epsilon
         if self.iter > self.info["Network"]["warmup"]:
@@ -399,6 +451,7 @@ def init_params(info, agent):
         agent.iter = iter
         return deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter
 
+
 def init_env(info):
     env = init_level(info)
     random_levels = True
@@ -409,12 +462,17 @@ def init_env(info):
         print ("Error, invalid parameter value")
         sys.exit(1)
 
+    if not info["Training"] and not info['LoadModel']:
+        print ("Error - Can't have training mode False with no trained model selected")
+        sys.exit(1)
+
     if info["Agent"]["type"] == 0:
         agent = RandomAgent(env.action_space)
     else:
         agent = Qagent(env, info)
 
     return env, random_levels, agent
+
 
 # Live plotter for rewards-deaths and best_Q-deaths, plotted every x deaths as avg of every x deaths
 class MarioPlotter(object):
@@ -508,8 +566,6 @@ class MarioPlotter(object):
 # total frames trained: 500k?
 # last 4 frames to seperate layer. Last framer higher resolution to other layer. Other layer for last 4 actions. Merge
 
-# https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
-# gamma = 0.99
 
 # The actual code
 N_iters_explore = 150000
@@ -519,18 +575,20 @@ info = {
     "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
-    "Plottyplot" : True,
+    "Plottyplot" : True, # plot rewards/deaths and best_q/deaths
+    "Training" : True, # Training or demo mode. False will load a trained DQN model defined below, and execute without further training. True will train DQN model
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
+    "Plot_imgs_predicted_q": False, # Will plot input_frames + predicted/target Q and action after warmup
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 2500, "predict_future_n": 1},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 2000, "predict_future_n": 1},
     "Replay": {"memory": 250000, "batchsize": 32}, # train on {batchsize} replay experiences per iteration
     "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
-              "policy": "hardmax" #softmax
+              "policy": "hardmax"
                },
    "LoadModel" : "t", # False = no loading, filename = loading (e.g. "test_model")
-   "SaveModel" : "t", # False = no saving, filename = saving (e.g. "test_model")
+   "SaveModel" : False, # False = no saving, filename = saving (e.g. "test_model")
 }
 
 
@@ -585,7 +643,7 @@ try:
                     Plotter(cum_reward, np.mean(avg_q), deaths) # Add death to plot
 
             # autosave model every 100k iterations
-            if info['SaveModel'] and iter % 100000 == 0:
+            if info['SaveModel'] and iter % 100000 == 0 and info["Training"]:
                 agent.save_model(info['SaveModel'] + "_" + str(iter))
                 save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
 
@@ -608,7 +666,7 @@ except Exception as e:
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
 finally:
     # Close the env and write model / result info to disk
-    if info['SaveModel'] and info["Agent"]["type"] == 1:
+    if info['SaveModel'] and info["Agent"]["type"] == 1 and info["Training"]:
         agent.save_model(info['SaveModel'])
         save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
     if env:
