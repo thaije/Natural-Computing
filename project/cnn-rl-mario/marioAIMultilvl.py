@@ -80,6 +80,7 @@ class Qnetwork:
         # Training Parameters
         self.network_info = info["Network"]
         self.replay_info = info["Replay"]
+        self.prev_states_count = self.network_info["input_frames"] - 1 # minus current frame
 
         # Learning parameters
         self.learning_rate = self.network_info["learning_rate"]
@@ -87,7 +88,6 @@ class Qnetwork:
 
         # Model network function
         self.model = self._build_model(env)
-
         if info['LoadModel']:
             self.load_model(info['LoadModel'])
 
@@ -96,14 +96,14 @@ class Qnetwork:
 
 
     def _build_model(self, env):
-        # input_2D = env.observation_space.shape[:2]
         input_2D = (84, 84)
-        input_3D = (1,) + input_2D
+        input_3D = (84, 84, 1) # width x height x channels (1 for grey scale)
+        print ("Input shape keras:", input_3D)
+
 
         # SS model
         # model = Sequential()
-        # model.add(Reshape(input_3D, input_shape=input_2D))
-        # model.add(Convolution2D(128, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model.add(Convolution2D(128, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform", data_format="channels_last", input_shape=input_3D))
         # model.add(Convolution2D(64, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
         # model.add(Convolution2D(32, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
         # model.add(Convolution2D(16, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
@@ -117,30 +117,31 @@ class Qnetwork:
 
 
         # Model from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-        # model = Sequential()
+        model = Sequential()
         # model.add(Reshape(input_3D, input_shape=input_2D))
-        # model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        #
-        # model.add(Flatten())
-        # model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
+        model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform", data_format="channels_last", input_shape=input_3D))
+        model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+
+        model.add(Flatten())
+        model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
+        model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
 
 
         # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
-        model = Sequential()
-        model.add(Reshape(input_3D, input_shape=input_2D))
-        model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model = Sequential()
+        # model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform", data_format="channels_last", input_shape=input_3D))
+        # model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        #
+        # model.add(Flatten())
+        # model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(env.action_space.n, activation="linear"))
 
-        model.add(Flatten())
-        model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(env.action_space.n, activation="linear"))
 
         Adam = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
         model.compile(loss="mean_squared_error", optimizer=Adam)
         model.summary()
+
         return model
 
 
@@ -160,66 +161,87 @@ class Qnetwork:
         print("Loaded model weights from disk from model/" + filename)
 
 
-    def _get_reward(self, statelist, reward_first):
+    def _get_reward(self, state_with_prevs, future_states, reward_first):
         "Calculates the reward based on however many states are in the list. So if there are 2 states it looks two in the future, etc.."
 
-        Dims = np.shape(statelist)
+        # Dims = np.shape(statelist)
+        #
+        # Qs = self.model.predict(np.squeeze(statelist))
+        # rewards = np.max(Qs, axis=1)
+        # rewards[0] = reward_first
+        # rewards = [(self.gamma ** i) * rewards[i] for i in range(Dims[0])]
+        #
+        # r = np.sum(rewards)
+        # return r
 
-        Qs = self.model.predict(np.squeeze(statelist))
-        rewards = np.max(Qs, axis=1)
-        rewards[0] = reward_first
-        rewards = [(self.gamma ** i) * rewards[i] for i in range(Dims[0])]
+        print ("Shape state with prevs:", np.shape(state_with_prevs))
 
+        # classic Q learning formula, Q value = reward + reward of next state with discount factor
+        Q_value = reward_first + self.gamma * np.amax(self.model.predict(state_with_prevs)[0])
 
-        return np.sum(rewards)
+        return Q_value
+
 
     def _randbatch(self, History):
         future_look_size = History.memory_info["size"]
         n_states_stored = History.cur_size
 
-        if n_states_stored <= future_look_size:
-            states = History.state_memory
-            reward_first = History.reward_memory[0]
-            action_first = History.action_memorykernel_initializer="he_uniform"[0]
-        else:
-            idx = np.random.randint(n_states_stored - future_look_size)
-            states = History.state_memory[idx:(idx + future_look_size)]
-            reward_first = History.reward_memory[idx]
-            action_first = History.action_memory[idx]
+        # get a random index for an replay item
+        idx = np.random.randint(low = self.prev_states_count, high = n_states_stored - future_look_size)
 
-        return states, reward_first, action_first
+        # retrieve the x previous and n future states
+        prev_states = History.state_memory[idx - self.prev_states_count: idx]
+        prev_states = np.squeeze(prev_states, axis=0)
+        future_states = History.state_memory[idx + 1: (idx + future_look_size)]
+
+        # retrieve the current state + action and reward
+        state = History.state_memory[idx]
+        reward = History.reward_memory[idx]
+        action = History.action_memory[idx]
+
+        return reward, action, state, prev_states, future_states
 
 
-
-    def update(self, History):
+    def replay(self, History):
 
         ### Replay
+        # Train the model on some replayed experiences
         # Creates n batches of size n_future_look and fits model
         # The main part that makes this slow is the actual fitting! (not the loopy loops)
         n_replay = self.replay_info["batchsize"]
-        if History.cur_size > History.memory_info["size"]:
+        if History.cur_size > History.memory_info["size"] + self.prev_states_count:
             X= []
             Y =[]
             for i in range(n_replay):
-                states, reward_first, action_first = self._randbatch(History)
+                reward, action, state_0, prev_states, future_states = self._randbatch(History)
 
-                state_0 = states[0]
-                reward_0 = self._get_reward(states, reward_first)
+                # state_with_prevs = copy.copy(prev_states)
+                # state_with_prevs.append(state_0)
+                # state_with_prevs = np.array(state_with_prevs)
+                state_with_prevs = np.append(prev_states, state_0, axis=0)
 
-                Q = self.model.predict(state_0)
+                state_with_prevs = np.reshape(state_with_prevs, (self.prev_states_count + 1, 84, 84, 1))
 
-                Q_target = np.copy(Q)
-                Q_target[0][action_first] = reward_0
+                # get the actual reward of the current state + future rewards
+                Q_target = self._get_reward(state_with_prevs, future_states, reward)
 
-                loss_0 = self.learning_rate * (Q_target - Q)
-                if loss_0[0][action_first] >= 0 and loss_0[0][action_first] <= 1:
-                    loss_0[0][action_first] = 1
+                # predict the Q value of the current frame with last x previous frames
+                Qs_predicted = self.model.predict(state_with_prevs)
 
-                # Y_i = Q + loss_0
-                Y_i = copy.copy(loss_0)
+                print ("Shape predicted Q:", np.shape(Qs_predicted))
 
-                Y.append(Y_i)
-                X.append(state_0)
+
+                Qs_predicted[0][action] = Q_target
+
+                # loss_0 = self.learning_rate * (Q_target - Q)
+                # if loss_0[0][action_first] >= 0 and loss_0[0][action_first] <= 1:
+                #     loss_0[0][action_first] = 1
+                #
+                # # Y_i = Q + loss_0
+                # Y_i = copy.copy(loss_0)
+
+                X.append(state_with_prevs)
+                Y.append(Qs_predicted)
 
             X = np.squeeze(np.asarray(X))
             Y = np.squeeze(np.asarray(Y))
@@ -227,30 +249,28 @@ class Qnetwork:
             self.model.fit(X, Y, batch_size = self.replay_info["batchsize"], verbose=0, epochs=1)
 
 
-        ## Normal updates. Looking 1 in future
-        X = History.state_memory[-1]
-        X_next = History.state_next_memory[-1]
-        action = History.action_memory[-1]
-        X_next = np.reshape(X_next, (1,) + np.shape(X_next))
-
-        Q_next = self.model.predict(X_next)
-        Q_max_next = np.max(Q_next)
-        Q = self.model.predict(X)
-
-        Q_target = np.copy(Q)
-        Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
-
-        # print ("Current Q:", Q)
-        # print ("Q target:", Q_target)
-        loss = Q_target - Q
-        if loss[0][action] >= 0 and loss[0][action] <= 1:
-            loss[0][action] = 1
-
-
-        Y = self.learning_rate * loss
-        # Y += Q
-
-        self.model.train_on_batch(X, Y)
+        # ## Normal updates. Looking 1 in future
+        # # Predict the best next action
+        # X = History.state_memory[-1]
+        # X_next = History.state_next_memory[-1]
+        # action = History.action_memory[-1]
+        # X_next = np.reshape(X_next, (1,) + np.shape(X_next))
+        #
+        # Q_next = self.model.predict(X_next)
+        # Q_max_next = np.max(Q_next)
+        # Q = self.model.predict(X)
+        #
+        # Q_target = np.copy(Q)
+        # Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
+        #
+        # loss = Q_target - Q
+        # if loss[0][action] >= 0 and loss[0][action] <= 1:
+        #     loss[0][action] = 1
+        #
+        #
+        # Y = self.learning_rate * loss
+        #
+        # self.model.train_on_batch(X, Y)
 
 
     def best_action(self, state):
@@ -345,7 +365,7 @@ class Qagent(object):
         self.History.append_to_memory(old_state, new_state, self.action, reward)
 
         # train Q network on replay memory items
-        self.Qnetwork.update(self.History)
+        self.Qnetwork.replay(self.History)
 
         # Update Greedy epsilon
         self.eps = np.exp(-self.eps_decay * self.iter)
@@ -359,7 +379,8 @@ class Qagent(object):
             self.action = self.action_space.sample()
 
         elif info["Agent"]["policy"] == "hardmax":
-            self.action = self.Qnetwork.best_action(new_state)
+            # self.action = self.Qnetwork.best_action(new_state)
+            self.action = self.action_space.sample()
 
         elif info["Agent"]["policy"] == "softmax":
             probs = self.Qnetwork.action_probs(state)
@@ -550,9 +571,9 @@ info = {
     "Version" : "v2",
     "Plottyplot" : True,
     "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
-    "Network": {"learning_rate": 0.99, "gamma": 0.9},
-    "Predict_future_n": {"size" : 3},
-    "Replay": {"memory": 250000, "batchsize": 4},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4}, # gamma = discount_rate
+    "Predict_future_n": {"size" : 3}, # use n future frames to calculate reward
+    "Replay": {"memory": 250000, "batchsize": 32}, # train on batchsize replay experiences per iteration
     "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
               "policy": "hardmax" #softmax
                },
@@ -631,7 +652,7 @@ try:
                     env.close()
                 if reward > -3:
                     lvl_completed_counter += 1
-                print ("Done.)
+                print ("Done.")
                 break
 
 

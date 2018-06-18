@@ -72,3 +72,22 @@ Used RMSprop gradient descent with minibatches of 32 / or MSE?
 So you can't have two different worlds/levels running in the emulator from the same script at the same time
 - if you run multiple emulators from one script at once, the script will run 10(?) frames in the first, than 10(?) in the second, back-and-forth.
 - maybe add a reward for passing a place where it died many times?
+
+
+
+# Q learning
+history = for spotting movement (strided?)
+
+Give 4 frames as input (current + 3 history)
+Also give last x actions?
+Get list of Q values for each action
+
+Get Q value of the current state:
+    reward + gamma (discount) * predict_next_state (^x?)
+
+Predict Q Value
+    -> returns list of Q values (expected reward) per action
+
+Difference = loss
+
+Train network on difference, to improve prediction of Q
