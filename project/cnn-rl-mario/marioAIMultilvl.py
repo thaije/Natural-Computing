@@ -97,13 +97,21 @@ class Qnetwork:
         normalized = keras.layers.Lambda(lambda x: x / 255.0)(frames_input)
 
         # Model layout from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-        conv1 = Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu", kernel_initializer="he_uniform", data_format="channels_first")(normalized)
-        conv2 = Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform")(conv1)
-        conv3 = Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform")(conv2)
+        conv1 = Convolution2D(32, (8, 8), strides=(4, 4), activation="relu", data_format="channels_first")(normalized)
+        conv2 = Convolution2D(64, (4, 4), strides=(2, 2), activation="relu")(conv1)
+        conv3 = Convolution2D(128, (3, 3), strides=(1, 1), activation="relu")(conv2)
         flatty_flat = Flatten()(conv3)
 
-        fully_connected = Dense(512, activation="relu", kernel_initializer="he_uniform")(flatty_flat)
-        output_layer = Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear")(fully_connected)
+        fully_connected = Dense(512, activation="relu")(flatty_flat)
+        output_layer = Dense(env.action_space.n, activation="linear")(fully_connected)
+
+        # with different kernel initializer / padding
+        # conv2 = Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform")(conv1)
+        # conv3 = Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform")(conv2)
+        # flatty_flat = Flatten()(conv3)
+        #
+        # fully_connected = Dense(512, activation="relu", kernel_initializer="he_uniform")(flatty_flat)
+        # output_layer = Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear")(fully_connected)
 
 
         # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
@@ -440,22 +448,22 @@ def init_level(info):
 
 
 # safe current param values of this model to a pickle file
-def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter):
+def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter):
     with open("models/" + filename + "_params", 'wb') as fp:
-        pickle.dump([deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter], fp)
+        pickle.dump([deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter], fp)
 
 
 
 # load default params, or from model file if defined
 def init_params(info, agent):
     if not info['LoadModel'] or not os.path.isfile("models/" + info['LoadModel'] + "_params"):
-        return 0, 0, [], [], agent, 0
+        return 0, 0, [], [], [], [], agent, 0
 
     # read in params from loaded model
     with open ("models/" + info['LoadModel'] + "_params", 'rb') as fp:
-        [deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter] = pickle.load(fp)
+        [deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter] = pickle.load(fp)
         agent.iter = iter
-        return deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter
+        return deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, agent, lvl_completed_counter
 
 
 def init_env(info):
@@ -482,10 +490,12 @@ def init_env(info):
 
 # Live plotter for rewards-deaths and best_Q-deaths, plotted every x deaths as avg of every x deaths
 class MarioPlotter(object):
-    def __init__(self, cum_rewards, avg_qs, deaths, plot_per_x_deaths):
+    def __init__(self, cum_rewards, avg_qs, deaths, cum_dists, avg_sps, plot_per_x_deaths):
         self.deaths = [0]
         self.cum_rewards = [0]
         self.avg_qs = [0]
+        self.cum_dists = [0]
+        self.avg_sps = [0]
 
         # initialise the plot with loaded params from a previous model, if given
         if deaths >= plot_per_x_deaths:
@@ -494,59 +504,85 @@ class MarioPlotter(object):
                     self.deaths.append(death_n)
                     # rewards are saved per death, we want to average over plot_per_x_deaths deaths
                     cum_reward = np.sum(cum_rewards[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
-                    cum_Q = np.sum(avg_qs[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
-                    self.avg_qs.append(cum_Q)
                     self.cum_rewards.append(cum_reward)
 
-        self.fig = plt.figure()
+                    cum_Q = np.sum(avg_qs[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.avg_qs.append(cum_Q)
+
+                    cum_dist = np.sum(cum_dists[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.cum_dists.append(cum_dist)
+
+                    avg_sp = np.sum(avg_sps[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.avg_sps.append(avg_sp)
+
+
+        self.fig = plt.figure(figsize=(8, 6))
         self.fig.suptitle("Mario Statistics")
 
         # Make the cumulative reward plots
-        self.ax1 = self.fig.add_subplot(121)
+        self.ax1 = self.fig.add_subplot(221)
         self.ax1.set_ylabel("Average cumulative reward per " + str(plot_per_x_deaths) + " deaths" )
         self.ax1.set_xlabel("Death #")
-
-        # For live plotting
         self.nowplot, = self.ax1.plot(self.deaths,self.cum_rewards, 'r-')
 
         # For Q value
-        self.ax2 = self.fig.add_subplot(122)
+        self.ax2 = self.fig.add_subplot(222)
         self.ax2.set_ylabel("Average best Q value" )
         self.ax2.set_xlabel("Death #")
         self.ax2.yaxis.set_label_position("right")
-
-        # For live plotting
         self.nowplot2, = self.ax2.plot(self.deaths, self.avg_qs, 'b-')
+
+        # For cum distance
+        self.ax3 = self.fig.add_subplot(223)
+        self.ax3.set_ylabel("Average distance" )
+        self.ax3.set_xlabel("Death #")
+        self.nowplot3, = self.ax3.plot(self.deaths, self.cum_dists, 'b-')
+
+        # For average speed
+        self.ax4 = self.fig.add_subplot(224)
+        self.ax4.set_ylabel("Average speed" )
+        self.ax4.set_xlabel("Death #")
+        self.ax4.yaxis.set_label_position("right")
+        self.nowplot4, = self.ax4.plot(self.deaths, self.avg_sps, 'b-')
 
         self.fig.canvas.draw()
         plt.show(block=False)
 
 
-    def __call__(self, cum_reward, avg_q, deaths):
+    def __call__(self, cum_reward, avg_q, deaths, cum_dist, avg_sp):
         """Updates the plot"""
 
         # Set params
         self.deaths.append(deaths)
         self.cum_rewards.append(cum_reward)
+        self.avg_qs.append(avg_q)
+        self.cum_dists.append(cum_dist)
+        self.avg_sps.append(avg_sp)
 
         # For cumulative reward
         self.nowplot.set_xdata(self.deaths)
         self.nowplot.set_ydata(self.cum_rewards)
-
-        # Live plot
         self.ax1.relim()
         self.ax1.autoscale_view(True,True,True)
 
-        # Q values
-        self.avg_qs.append(avg_q)
-
-        # Update input
+        # Update avg qs
         self.nowplot2.set_xdata(self.deaths)
         self.nowplot2.set_ydata(self.avg_qs)
-
-        # Live plot
         self.ax2.relim()
         self.ax2.autoscale_view(True,True,True)
+
+        # Update avg qs
+        self.nowplot3.set_xdata(self.deaths)
+        self.nowplot3.set_ydata(self.cum_dists)
+        self.ax3.relim()
+        self.ax3.autoscale_view(True,True,True)
+
+        # Update avg qs
+        self.nowplot4.set_xdata(self.deaths)
+        self.nowplot4.set_ydata(self.avg_sps)
+        self.ax4.relim()
+        self.ax4.autoscale_view(True,True,True)
+
         self.fig.canvas.draw()
 
 
@@ -593,8 +629,8 @@ info = {
     "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax"
                },
-   "LoadModel" : "t_100000_params", # False = no loading, filename = loading (e.g. "test_model")
-   "SaveModel" : "t_v2", # False = no saving, filename = saving (e.g. "test_model")
+   "LoadModel" : "final", # False = no loading, filename = loading (e.g. "test_model")
+   "SaveModel" : "final", # False = no saving, filename = saving (e.g. "test_model")
 }
 
 
@@ -612,9 +648,8 @@ cum_rewards = [] # save the cum rewards of all runs
 plot_per_x_deaths = info["Plot_avg_reward_nruns"] # to smooth the graph plot the average cum_reward of the last x deaths
 avg_q_values = []
 
-deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter = init_params(info, agent)
-Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, plot_per_x_deaths)
-
+deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, agent, lvl_completed_counter = init_params(info, agent)
+Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, cum_dists, avg_sps, plot_per_x_deaths)
 
 try:
     while True:
@@ -625,10 +660,14 @@ try:
         # run specific vars
         cum_reward = 0
         avg_q = [] # list of avg q values for current state
+        frames = 0
+        cum_dist = 0
 
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
+            cum_dist += reward
+            frames += 1
             reward = calc_reward(reward, done)
             cum_reward += reward
 
@@ -637,7 +676,7 @@ try:
                 avg_q += [0]
             else:
                 avg_q += [agent.Qnetwork.best_Qvalue]
-            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {} | Lvl completions: {} | Eps: {:0.2f}".format(iter, reward, cum_reward, deaths, lvl_completed_counter, agent.eps))
+            print("Iter: {} | Reward: {} | Dist: {} | Avg speed: {:0.2f} |  Run cumu reward: {:0.2f} | Deaths: {} | Lvl completions: {} | Eps: {:0.2f}".format(iter, reward, cum_dist, cum_dist/float(frames), cum_reward, deaths, lvl_completed_counter, agent.eps))
             iter += 1
 
             if reward <= -3:
@@ -647,17 +686,19 @@ try:
                 if deaths % plot_per_x_deaths == 0:
                     # calc avg reward from last plot_per_x_deaths saved deaths
                     avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
-                    Plotter(cum_reward, np.mean(avg_q), deaths) # Add death to plot
+                    Plotter(cum_reward, np.mean(avg_q), deaths, cum_dist, cum_dist/float(frames)) # Add death to plot
 
             # autosave model every 100k iterations
             if info['SaveModel'] and iter % 100000 == 0 and info["Training"]:
                 agent.save_model(info['SaveModel'] + "_" + str(iter))
-                save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
+                save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter)
 
             # Stops the game
             if done:
                 cum_rewards.append(cum_reward)
                 avg_q_values.append(np.mean(avg_q))
+                cum_dists.append(cum_dist)
+                avg_sps.append(cum_dist / float(frames))
                 if mult_lvls:
                     env.close()
                 if reward > -3:
@@ -675,6 +716,6 @@ finally:
     # Close the env and write model / result info to disk
     if info['SaveModel'] and info["Agent"]["type"] == 1 and info["Training"]:
         agent.save_model(info['SaveModel'])
-        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
+        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter)
     if env:
         env.close()
