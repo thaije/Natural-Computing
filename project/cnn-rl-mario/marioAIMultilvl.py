@@ -69,6 +69,23 @@ class Qnetwork:
         # Extra
         self.best_Qvalue = 0
 
+        self.actions_index = [
+            'NOP',
+            'Up',
+            'Down',
+            'Left',
+            'Right',
+            'Left + A',
+            'Left + B',
+            'Left + A + B',
+            'Right + A',
+            'Right + B',
+            'Right + A + B',
+            'A',
+            'B',
+            'A + B'
+        ]
+
 
 
     def _build_model(self, env):
@@ -137,7 +154,10 @@ class Qnetwork:
         # return r
 
         # classic Q learning formula, Q value = reward + reward of next state with discount factor
-        Q_value = reward_first + self.gamma * np.amax(self.model.predict(state_with_prevs)[0])
+        pred = np.amax(self.model.predict(state_with_prevs)[0])
+        Q_value = reward_first + self.gamma * pred
+        # print ("Predicted Q:", pred)
+
         return Q_value
 
 
@@ -161,26 +181,9 @@ class Qnetwork:
         return reward, action, state, prev_states, future_states
 
     def _plot_prediction(self, Q_target, Qs_predicted, action, state_with_prevs):
-        actions_index = [
-            'NOP',
-            'Up',
-            'Down',
-            'Left',
-            'Right',
-            'Left + A',
-            'Left + B',
-            'Left + A + B',
-            'Right + A',
-            'Right + B',
-            'Right + A + B',
-            'A',
-            'B',
-            'A + B'
-        ]
-
         print ("Q target vs Q predicted:", Q_target, Qs_predicted[0][action])
         print ("Shape states:", np.shape(state_with_prevs))
-        print ("Action:", action, " = ", actions_index[action])
+        print ("Action:", action, " = ", self.actions_index[action])
 
         # plot pictures
         fig = plt.figure(figsize=(20, 8))
@@ -214,6 +217,9 @@ class Qnetwork:
 
                 # predict the Q value of the current frame with last x previous frames
                 Qs_predicted = self.model.predict(state_with_prevs)
+
+                # if i == 1:
+                    # print ("Training. Action: {} {} | Reward: {} | Q target: {:0.2f} | Q predicted: {:0.2f}".format(action, self.actions_index[action], reward, Q_target, Qs_predicted[0][action]))
 
                 # plot the x history frames with predicted Q, target Q, and action, to see what prediction is like
                 if self.plot_q_pred_img:
@@ -568,7 +574,7 @@ class MarioPlotter(object):
 
 
 # The actual code
-N_iters_explore = 150000
+N_iters_explore = 325000
 
 info = {
     "Game" : 'SuperMarioBros',
@@ -582,19 +588,20 @@ info = {
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 2000, "predict_future_n": 1},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 25000, "predict_future_n": 1},
     "Replay": {"memory": 250000, "batchsize": 32}, # train on {batchsize} replay experiences per iteration
     "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax"
                },
-   "LoadModel" : "t", # False = no loading, filename = loading (e.g. "test_model")
-   "SaveModel" : False, # False = no saving, filename = saving (e.g. "test_model")
+   "LoadModel" : "t_100000_params", # False = no loading, filename = loading (e.g. "test_model")
+   "SaveModel" : "t_v2", # False = no saving, filename = saving (e.g. "test_model")
 }
 
 
 
 # load mario lvl and init agent
 env, mult_lvls, agent = init_env(info)
+mult_lvls = True
 
 reward = 0
 done = False

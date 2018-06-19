@@ -24,6 +24,7 @@
 - steven reward func
 - q value mask?
 - implement separate network for generating target Q
+- multiple distance based epsilons
 
 # notes
 - trainen op lvl 1/3, testen lvl 2
