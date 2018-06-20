@@ -20,37 +20,6 @@ There are a number of parameters in `marioAIMultilvl.py` which can change the fu
 - See the Network, Agent and Replay parameters for tweaking variable values of these.
 
 
-# Todo:
-- run for 5 million iterations or so
-- reward: add ingame score for motivation to kill enemies / learn what enemies are
-- actions: change env to minimize action space https://github.com/Kautenja/gym-super-mario-bros/blob/master/gym_super_mario_bros/smb_env.py
-- network adaptations:
-    - save / load replay memory?
-    - (Double) deep Q-learning https://github.com/Naereen/gym-nes-mario-bros/tree/master/src/dqn / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-    - Test different architectures.
-- test by training on multiple levels
-- maybe add a reward for passing a place where it died many times?
-- steven reward func
-- q value mask?
-- implement separate network for generating target Q
-- multiple distance based epsilons
-
-# notes
-- trainen op lvl 1/3, testen lvl 2
-- gets stuck on bonus lvl, q value drops down
-- we use frame skipping
-- enemies, main character, surface can have same colour
-- start and pavement same colour
-- Use spatial transformer to transpose image to self / mario? https://github.com/aleju/mario-ai
-- some game elements only encountered later on (holes in the ground, etc.)
-- Colours:
-    - Mario not very distinctive -> give other colour?
-    - Enemies same colour as surface
-    - As such -> better in swim lvl? enemies / mario / surface etc distinct colour
-- architecture
-- 14 actions
-
-
 
 # Levels
 - `SuperMarioBros-<world>-<level>-v<version>`
@@ -72,6 +41,38 @@ There are a number of parameters in `marioAIMultilvl.py` which can change the fu
 - if you create multiple gym_super_mario_bros environments, the world/level of the last one overwrites the first one (world/level).
 So you can't have two different worlds/levels running in the emulator from the same script at the same time
 - if you run multiple emulators from one script at once, the script will run 10(?) frames in the first, than 10(?) in the second, back-and-forth.
+
+
+# Todo:
+- run for 5 million iterations or so
+- reward: add ingame score for motivation to kill enemies / learn what enemies are
+- actions: change env to minimize action space https://github.com/Kautenja/gym-super-mario-bros/blob/master/gym_super_mario_bros/smb_env.py
+- network adaptations:
+    - save / load replay memory?
+    - (Double) deep Q-learning https://github.com/Naereen/gym-nes-mario-bros/tree/master/src/dqn / http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
+    - Test different architectures.
+- test by training on multiple levels
+- maybe add a reward for passing a place where it died many times?
+- steven reward func
+- q value mask?
+- implement separate network for generating target Q
+- multiple distance based epsilons
+
+# notes
+- train on lvl 1/3, test on lvl 2
+- gets stuck on bonus lvl, q value drops down
+- we use frame skipping
+- enemies, main character, surface can have same colour
+- start and pavement same colour
+- Use spatial transformer to transpose image to self / mario? https://github.com/aleju/mario-ai
+- some game elements only encountered later on (holes in the ground, etc.)
+- Colours:
+    - Mario not very distinctive -> give other colour?
+    - Enemies same colour as surface
+    - As such -> better in swim lvl? enemies / mario / surface etc distinct colour
+- architecture
+- 14 actions
+
 
 
 # DQN overview
