@@ -102,3 +102,9 @@ The main drawback of this type of architecture is that a separate forward pass i
 - http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
 - https://github.com/aleju/mario-ai
 - https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
+
+
+
+Todo:
+- check report
+- Kai mean en std aangepast?
