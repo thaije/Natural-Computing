@@ -7,6 +7,7 @@ import random
 import pdb
 import sys
 from scipy.misc import imresize
+import logging
 
 
 class Pool():
@@ -182,6 +183,17 @@ class Pool():
 				self.new_generation(stale_species, population, crossover_chance, perturb_chance, delta_disjoint, delta_weight, delta_threshold)
 				self.current_species = 0			
 
+	def get_best_genome(self):
+		'''
+		Returns best genome in pool
+		:return best genome
+		'''
+		genomes = []
+		for species in self.species:
+			genomes.append(species.get_best_genome())
+		genomes.sort(key=lambda g: g.fitness)
+		return genomes[-1]	
+
 class Species():
 	'''
 	Class representing a species of evolved networks
@@ -204,6 +216,14 @@ class Species():
 			total += g.global_rank
 
 		self.average_fitness = total / len(self.genomes)	    
+
+	def get_best_genome(self):
+		'''
+		Returns best genome is species
+		:return best genome
+		'''
+		self.genomes.sort(key=lambda g: g.fitness)
+		return self.genomes[-1]	
 
 class Genome():
 	'''
@@ -671,6 +691,13 @@ def initialize_run(pool, inp_size):
 	genome = species.genomes[pool.current_genome]
 	net = Network(genome, inp_size)
  
+def initialize_genome(genome, inp_size):
+	'''
+	Creates new Network from given genome
+	:param genome (Genome)
+	:param inp_size (array_like) input dimensions
+	'''
+	net = Network(genome, inp_size)
 
 def evaluate_current(pool, inputs):
 	'''
@@ -686,10 +713,20 @@ def evaluate_current(pool, inputs):
 
 	return output
 
+def evaluate_genome(genome, inputs):
+	'''
+	Evaluates network from given genome
+	:param genome (Genome)
+	:param inputs (array_like) neural network inputs
+	:return neural network output
+	'''
+	return genome.network.evaluate(inputs)
 
 def genome_evaluated(pool):
 	'''
 	Returns whether genome has already been evaluated
+	:param pool (Pool)
+	:return bool if genome has been evaluated yet
 	'''
 	species = pool.species[pool.current_species]
 	genome = species.genomes[pool.current_genome]
@@ -710,6 +747,7 @@ def load_pool(filename='pool.pkl'):
 	:returns loaded pool
 	'''
 	return pkl.load(open(filename,'rb'))    
+
 
 def rgb2gray(rgb):
 	'''
@@ -762,6 +800,16 @@ if __name__ == '__main__':
 
 	LEVEL_LEN = 3186 #not sure if correct
 
+	logging.basicConfig(level=logging.INFO)
+	logger = logging.getLogger(__name__)
+	handler = logging.FileHandler('mario.log')
+	# create a logging format
+	#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+	#handler.setFormatter(formatter)
+
+	# add the handlers to the logger
+	logger.addHandler(handler)
+	
 	counter = 0
 	while True:
 		time_out = 20
@@ -787,9 +835,6 @@ if __name__ == '__main__':
 			if pos_info['curr'] < pos_info['best']:
 				time_out -= 1
 
-			if pos_info['curr'] <= -100:
-				done = True
-
 			#if pos_info['best'] <= pos_info['curr']:
 			#	time_out += 1
 
@@ -813,7 +858,7 @@ if __name__ == '__main__':
 					pool.max_fitness = fitness
 					save_pool(pool, 'pool_generation{}.pkl'.format(pool.generation))	
 
-				print(("Gen " + str(pool.generation) + " species " + str(pool.current_species) + " genome " + str(pool.current_genome) + " fitness: " + str(fitness)+ " maxfitness: " + str(pool.max_fitness)))
+				logger.info(("Gen " + str(pool.generation) + " species " + str(pool.current_species) + " genome " + str(pool.current_genome) + " fitness: " + str(fitness)+ " maxfitness: " + str(pool.max_fitness)))
 
 				pool.current_species = 0
 				pool.current_genome = 0
