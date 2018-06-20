@@ -12,9 +12,10 @@
 - run `python3 marioAIMultilvl.py`
 
 
+
 # Settings
 There are a number of parameters in `marioAIMultilvl.py` which can change the functionality, located in the `info` variable around line 620:
-- Train a new model: set Training to True, LoadModel to False, and SaveModel to a string with the desired filename.
+- Train a new model: set Training to True, LoadModel to False, and SaveModel to a string with the desired filename. By default every 100.000 iterations the model will be saved, and when the user stops the training process with ctrl-C.
 - World, Levels and Version correspond to the Mario worlds, levels and versions as specified in the original Super Mario Bros Gym package: https://github.com/Kautenja/gym-super-mario-bros/blob/master/gym_super_mario_bros/smb_env.py
 - Run a model without training: set Training to False, LoadModel to the desired model.
 - See the Network, Agent and Replay parameters for tweaking variable values of these.
