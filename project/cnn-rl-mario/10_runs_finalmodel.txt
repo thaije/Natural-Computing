@@ -1,0 +1,14 @@
+Iter: 363467 | Reward: 0.5 | Dist: 1040 | Avg speed: 4.56 |  Run cumu reward: 70.30 | Deaths: 1181 | Lvl completions: 0 | Eps: 0.11
+Iter: 363510 | Reward: -3  | Dist: 1217 | Avg speed: 3.48 |  Run cumu reward: 65.20 | Deaths: 1177 | Lvl completions: 0 | Eps: 0.11
+Iter: 364979 | Reward: 1   | Dist: 631 | Avg speed: 6.57 |  Run cumu reward: 54.40 | Deaths: 1195 | Lvl completions: 0 | Eps: 0.11
+Iter: 365070 | Reward: 0.5 | Dist: 248 | Avg speed: 7.75 |  Run cumu reward: 22.90 | Deaths: 1198 | Lvl completions: 0 | Eps: 0.11
+Iter: 365103 | Reward: 1   | Dist: 240 | Avg speed: 7.50 |  Run cumu reward: 22.20 | Deaths: 1199 | Lvl completions: 0 | Eps: 0.11
+Iter: 365131 | Reward: 1   | Dist: 255 | Avg speed: 9.44 |  Run cumu reward: 23.50 | Deaths: 1200 | Lvl completions: 0 | Eps: 0.11
+Iter: 365162 | Reward: 1   | Dist: 256 | Avg speed: 8.53 |  Run cumu reward: 25.00 | Deaths: 1201 | Lvl completions: 0 | Eps: 0.11
+Iter: 365325 | Reward: -0.1| Dist: 826 | Avg speed: 5.10 |  Run cumu reward: 60.10 | Deaths: 1202 | Lvl completions: 0 | Eps: 0.11
+Iter: 365478 | Reward: -0.1| Dist: 828 | Avg speed: 5.45 |  Run cumu reward: 62.70 | Deaths: 1203 | Lvl completions: 0 | Eps: 0.11
+Iter: 365643 | Reward: 1   | Dist: 737 | Avg speed: 4.49 |  Run cumu reward: 50.80 | Deaths: 1204 | Lvl completions: 0 | Eps: 0.11
+
+
+dists = [1040, 1217, 631, 248, 240, 255, 256, 826, 828, 737]
+avg_sps = [4.56, 3.48, 6.57, 7.75, 7.50, 9.44, 8.53, 5.10, 5.45, 4.49]

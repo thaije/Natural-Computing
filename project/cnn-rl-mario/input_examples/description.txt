@@ -1,0 +1,10 @@
+
+Image examples:
+go_right.png
+Training. Action: 8 Right + A | Reward: 0.5 | Q target: 0.83 | Q predicted: 0.36
+
+kill_enemy.png
+Training. Action: 9 Right + B | Reward: 0.5 | Q target: 1.51 | Q predicted: 1.11
+
+dqn_mario_idle:
+Action: 9 Right + B | Reward: -0.1 | Q target: -1.19 | Q predicted: -1.24

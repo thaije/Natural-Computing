@@ -3,10 +3,10 @@ import numpy as np
 from gym import wrappers, logger
 import keras
 from keras.datasets import mnist
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Flatten
-from keras.layers import Conv2D, MaxPooling2D, Reshape
+from keras.layers import Dense, Flatten, Input, Lambda
 from keras.layers.convolutional import Convolution2D
+from keras.optimizers import RMSprop, Adam
+from keras.models import Model
 from keras import backend as K
 import random, h5py, os.path, pickle, traceback, sys, copy
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 
 def calc_reward(old_reward, done):
-    "Calculates new reward not only based on distance"
+    """Converts default rewards of gym_super_mario_bros package. Calculates new reward not only based on distance"""
     if done and old_reward <= -50: # If done but not dead (or timeout?)
         new_reward = -3
     elif done: # If level finished
@@ -26,7 +26,7 @@ def calc_reward(old_reward, done):
         new_reward = 1
     elif old_reward > 0: # If move to right
         new_reward = 0.5
-    elif old_reward == 0: # If stand still slight punishment BUG walking left against the wall also counts as standing still
+    elif old_reward == 0: # If stand still slight punishment
         new_reward = -0.1
     elif old_reward < 0 and old_reward >= -8: # If move to left
         new_reward = -1
@@ -36,33 +36,6 @@ def calc_reward(old_reward, done):
         new_reward = -3
 
     return new_reward
-
-
-def pad_state(state, const=0):
-    """
-    This function pads the mario state to be square.
-    :param state: RGB state of MarioBros
-    :param const: constant to pad with
-    :return: (X,X,3) padded along the first dimension state
-    """
-
-    pad_length = state.shape[1] - state.shape[0]
-    if pad_length > 0:
-        state_padded = np.pad(state, pad_width=[(pad_length, 0), (0, 0), (0, 0)], mode='constant', constant_values=const)
-    elif pad_length < 0:
-        state_padded = np.pad(state, pad_width=[(0, 0), (abs(pad_length), 0), (0, 0)], mode='constant',constant_values=const)
-    else: # If square already
-        state_padded = state
-
-    return state_padded
-
-
-def getIfromRGB(rgb):
-    red = rgb[:,:,0]
-    green = rgb[:,:,1]
-    blue = rgb[:,:,2]
-    RGBint = (red<<16) + (green<<8) + blue
-    return RGBint
 
 
 class RandomAgent(object):
@@ -78,8 +51,11 @@ class Qnetwork:
     def __init__(self, env, info):
 
         # Training Parameters
+        self.training = info["Training"]
+        self.plot_q_pred_img = info["Plot_imgs_predicted_q"]
         self.network_info = info["Network"]
         self.replay_info = info["Replay"]
+        self.prev_states_count = self.network_info["input_frames"] - 1 # minus current frame
 
         # Learning parameters
         self.learning_rate = self.network_info["learning_rate"]
@@ -87,60 +63,72 @@ class Qnetwork:
 
         # Model network function
         self.model = self._build_model(env)
-
         if info['LoadModel']:
             self.load_model(info['LoadModel'])
 
         # Extra
         self.best_Qvalue = 0
 
+        self.actions_index = [
+            'NOP',
+            'Up',
+            'Down',
+            'Left',
+            'Right',
+            'Left + A',
+            'Left + B',
+            'Left + A + B',
+            'Right + A',
+            'Right + B',
+            'Right + A + B',
+            'A',
+            'B',
+            'A + B'
+        ]
+
+
 
     def _build_model(self, env):
-        # input_2D = env.observation_space.shape[:2]
-        input_2D = (84, 84)
-        input_3D = (1,) + input_2D
 
-        # SS model
-        # model = Sequential()
-        # model.add(Reshape(input_3D, input_shape=input_2D))
-        # model.add(Convolution2D(128, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(64, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(32, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(16, (2, 2), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        input_3D = (4, 84, 96) # nframes x width x height
+        frames_input = keras.layers.Input(input_3D, name='frames')
+
+        # normalize input values from 0-255 to 0-1
+        normalized = keras.layers.Lambda(lambda x: x / 255.0)(frames_input)
+
+        # Model layout from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
+        conv1 = Convolution2D(32, (8, 8), strides=(4, 4), activation="relu", data_format="channels_first")(normalized)
+        conv2 = Convolution2D(64, (4, 4), strides=(2, 2), activation="relu")(conv1)
+        conv3 = Convolution2D(128, (3, 3), strides=(1, 1), activation="relu")(conv2)
+        flatty_flat = Flatten()(conv3)
+
+        fully_connected = Dense(512, activation="relu")(flatty_flat)
+        output_layer = Dense(env.action_space.n, activation="linear")(fully_connected)
+
+        # with different kernel initializer / padding
+        # conv2 = Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform")(conv1)
+        # conv3 = Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform")(conv2)
+        # flatty_flat = Flatten()(conv3)
         #
-        # model.add(Flatten())
-        # model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(128, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(64, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(32, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(env.action_space.n, activation="linear"))
-
-
-        # Model from http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
-        # model = Sequential()
-        # model.add(Reshape(input_3D, input_shape=input_2D))
-        # model.add(Convolution2D(32, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(64, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        # model.add(Convolution2D(128, (3, 3), strides=(1, 1), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        #
-        # model.add(Flatten())
-        # model.add(Dense(512, activation="relu", kernel_initializer="he_uniform"))
-        # model.add(Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear"))
+        # fully_connected = Dense(512, activation="relu", kernel_initializer="he_uniform")(flatty_flat)
+        # output_layer = Dense(env.action_space.n, kernel_initializer="he_uniform", activation="linear")(fully_connected)
 
 
         # Model from original Deep Q learning paper https://arxiv.org/pdf/1312.5602v1.pdf
-        model = Sequential()
-        model.add(Reshape(input_3D, input_shape=input_2D))
-        model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform"))
-        model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        # model = Sequential()
+        # model.add(Convolution2D(16, (8, 8), strides=(4, 4), padding="same", activation="relu",kernel_initializer="he_uniform", data_format="channels_last", input_shape=input_3D))
+        # model.add(Convolution2D(32, (4, 4), strides=(2, 2), padding="same", activation="relu",kernel_initializer="he_uniform"))
+        #
+        # model.add(Flatten())
+        # model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
+        # model.add(Dense(env.action_space.n, activation="linear"))
 
-        model.add(Flatten())
-        model.add(Dense(256, activation="relu", kernel_initializer="he_uniform"))
-        model.add(Dense(env.action_space.n, activation="linear"))
-
-        Adam = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-        model.compile(loss="mean_squared_error", optimizer=Adam)
+        optim = RMSprop(lr=0.00025, rho=0.95, epsilon=0.01)
+        # optim = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+        model = Model(input=frames_input, output=output_layer)
+        model.compile(loss=huber_loss, optimizer=optim)
         model.summary()
+
         return model
 
 
@@ -160,102 +148,124 @@ class Qnetwork:
         print("Loaded model weights from disk from model/" + filename)
 
 
-    def _get_reward(self, statelist, reward_first):
-        "Calculates the reward based on however many states are in the list. So if there are 2 states it looks two in the future, etc.."
+    def _get_reward(self, state_with_prevs, future_states, reward_first):
+        """Calculates the reward based on however many states are in the list. So if there are 2 states it looks two in the future, etc.."""
 
-        Dims = np.shape(statelist)
+        # TODO: make this work with extra history frames
+        # Dims = np.shape(statelist)
+        # Qs = self.model.predict(np.squeeze(state_with_prevs))
+        # rewards = np.amax(Qs, axis=1)
+        # rewards[0] = reward_first
+        # rewards = [(self.gamma ** i) * rewards[i] for i in range(Dims[0])]
+        #
+        # r = np.sum(rewards)
+        # return r
 
-        Qs = self.model.predict(np.squeeze(statelist))
-        rewards = np.max(Qs, axis=1)
-        rewards[0] = reward_first
-        rewards = [(self.gamma ** i) * rewards[i] for i in range(Dims[0])]
+        # classic Q learning formula, Q value = reward + reward of next state with discount factor
+        pred = np.amax(self.model.predict(state_with_prevs)[0])
+        Q_value = reward_first + self.gamma * pred
+        # print ("Predicted Q:", pred)
 
+        return Q_value
 
-        return np.sum(rewards)
 
     def _randbatch(self, History):
-        future_look_size = History.memory_info["size"]
+        future_look_size = History.fut_n
         n_states_stored = History.cur_size
 
-        if n_states_stored <= future_look_size:
-            states = History.state_memory
-            reward_first = History.reward_memory[0]
-            action_first = History.action_memorykernel_initializer="he_uniform"[0]
-        else:
-            idx = np.random.randint(n_states_stored - future_look_size)
-            states = History.state_memory[idx:(idx + future_look_size)]
-            reward_first = History.reward_memory[idx]
-            action_first = History.action_memory[idx]
+        # get a random index for an replay item
+        idx = np.random.randint(low = self.prev_states_count, high = n_states_stored - future_look_size)
 
-        return states, reward_first, action_first
+        # retrieve the x previous and n future states
+        prev_states = History.state_memory[idx - self.prev_states_count: idx]
+        prev_states = np.squeeze(prev_states, axis=0)
+        future_states = History.state_memory[idx + 1: (idx + future_look_size)]
+
+        # retrieve the current state + corresponding action and reward
+        state = History.state_memory[idx]
+        reward = History.reward_memory[idx]
+        action = History.action_memory[idx]
+
+        return reward, action, state, prev_states, future_states
+
+    def _plot_prediction(self, Q_target, Qs_predicted, action, state_with_prevs):
+        print ("Q target vs Q predicted:", Q_target, Qs_predicted[0][action])
+        print ("Shape states:", np.shape(state_with_prevs))
+        print ("Action:", action, " = ", self.actions_index[action])
+
+        # plot pictures
+        fig = plt.figure(figsize=(20, 8))
+        plt.gray()
+        fig.suptitle("Last " + str(self.prev_states_count + 1) + " frames with predicted and target Q val for action")
+        for i in range(1, self.prev_states_count + 2):
+            img = np.reshape(state_with_prevs[0][i-1], (84,96))
+            ax = fig.add_subplot(1, self.prev_states_count + 1, i)
+            ax.imshow(img)
+            plt.gray()
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
+        plt.show()
 
 
+    def replay(self, History):
+        """ Train model on some random replayed experiences """
 
-    def update(self, History):
-
-        ### Replay
-        # Creates n batches of size n_future_look and fits model
+        # Creates n batches of size frames + n_future_look and fits model
         # The main part that makes this slow is the actual fitting! (not the loopy loops)
         n_replay = self.replay_info["batchsize"]
-        if History.cur_size > History.memory_info["size"]:
+        if History.cur_size > History.fut_n + self.prev_states_count + self.network_info["warmup"]:
             X= []
             Y =[]
             for i in range(n_replay):
-                states, reward_first, action_first = self._randbatch(History)
+                reward, action, state_0, prev_states, future_states = self._randbatch(History)
 
-                state_0 = states[0]
-                reward_0 = self._get_reward(states, reward_first)
+                # 1 input item = 4 frames (given as channels) of 84 x 96 px
+                state_with_prevs = np.append(prev_states, state_0, axis=0)
+                state_with_prevs = np.reshape(state_with_prevs, (1, self.prev_states_count + 1, 84, 96))
 
-                Q = self.model.predict(state_0)
+                # get the actual reward of the current state + future rewards
+                Q_target = self._get_reward(state_with_prevs, future_states, reward)
 
-                Q_target = np.copy(Q)
-                Q_target[0][action_first] = reward_0
+                # predict the Q value of the current frame with last x previous frames
+                Qs_predicted = self.model.predict(state_with_prevs)
 
-                loss_0 = self.learning_rate * (Q_target - Q)
-                if loss_0[0][action_first] >= 0 and loss_0[0][action_first] <= 1:
-                    loss_0[0][action_first] = 1
+                # print ("Training. Action: {} {} | Reward: {} | Q target: {:0.2f} | Q predicted: {:0.2f}".format(action, self.actions_index[action], reward, Q_target, Qs_predicted[0][action]))
 
-                # Y_i = Q + loss_0
-                Y_i = copy.copy(loss_0)
+                # plot the x history frames with predicted Q, target Q, and action, to see what prediction is like
+                if self.plot_q_pred_img:
+                    self._plot_prediction(Q_target, Qs_predicted, action, state_with_prevs)
 
-                Y.append(Y_i)
-                X.append(state_0)
+                # We feed the network the correct Q value for the state-action pair
+                # we know / calculated. The other state-action Q values are kept the
+                # same as Q_predicted so they don't influence the network
+                Qs_predicted[0][action] = Q_target # + ?
 
-            X = np.squeeze(np.asarray(X))
-            Y = np.squeeze(np.asarray(Y))
+                # The gradient descent step with the loss is calculated and
+                # done automatically by Keras
+                X.append(state_with_prevs)
+                Y.append(Qs_predicted)
+
+            X = np.squeeze(X)
+            Y = np.squeeze(Y)
 
             self.model.fit(X, Y, batch_size = self.replay_info["batchsize"], verbose=0, epochs=1)
 
 
-        ## Normal updates. Looking 1 in future
-        X = History.state_memory[-1]
-        X_next = History.state_next_memory[-1]
-        action = History.action_memory[-1]
-        X_next = np.reshape(X_next, (1,) + np.shape(X_next))
 
-        Q_next = self.model.predict(X_next)
-        Q_max_next = np.max(Q_next)
-        Q = self.model.predict(X)
+    def best_action(self, state, history):
+        """ Gets best action based on current state"""
 
-        Q_target = np.copy(Q)
-        Q_target[0][action] = reward + self.gamma * Q_max_next # To make it kinda two-sequenced prediction
+        # Wait untill we have atleast x frames in the replay memory before training the network (warmup) if we are in training mode
+        # We also need atleast x history frames to get a prediction from the CNN
+        if (history.cur_size < self.prev_states_count) or (history.cur_size < self.network_info["warmup"] and self.training):
+            return -1
 
-        # print ("Current Q:", Q)
-        # print ("Q target:", Q_target)
-        loss = Q_target - Q
-        if loss[0][action] >= 0 and loss[0][action] <= 1:
-            loss[0][action] = 1
+        # concatenate the last frame with x history frames
+        prev_states = history.state_memory[-self.prev_states_count:]
+        prev_states = np.squeeze(prev_states, axis=0)
+        state_with_prevs = np.append(prev_states, state, axis=0)
+        X = np.reshape(state_with_prevs, (1, self.prev_states_count + 1, 84, 96))
 
-
-        Y = self.learning_rate * loss
-        # Y += Q
-
-        self.model.train_on_batch(X, Y)
-
-
-    def best_action(self, state):
-        "Gets best action based on current state"
-        X = state
         Q = self.model.predict(X)
         self.best_Qvalue = np.max(Q)
         return np.argmax(Q)
@@ -270,6 +280,19 @@ class Qnetwork:
         return (Q/np.sum(Q))
 
 
+# From https://becominghuman.ai/beat-atari-with-deep-reinforcement-learning-part-2-dqn-improvements-d3563f665a2c
+def huber_loss(a, b, in_keras=True):
+    """ Computes the Huber Loss: MSE for low values and MAE for large values """
+    error = a - b
+    quadratic_term = error*error / 2
+    linear_term = abs(error) - 1/2
+    use_linear_term = (abs(error) > 1.0)
+    if in_keras:
+        # Keras won't let us multiply floats by booleans, so we explicitly cast the booleans to floats
+        use_linear_term = K.cast(use_linear_term, 'float32')
+    return use_linear_term * linear_term + (1-use_linear_term) * quadratic_term
+
+
 class Qagent(object):
     """Qagent"""
     def __init__(self, env, info):
@@ -282,16 +305,9 @@ class Qagent(object):
         self.state_hist = []
         self.action = self.action_space.sample()
         self.eps_decay = self.info["Agent"]["eps_decay"]
+        self.eps = self.info["Agent"]["eps_start"]
 
         self.History = Memory(info) # replay memory
-
-    def getIfromRGB(self, rgb):
-        "RGB to integer converter"
-        red = rgb[:, :, 0]
-        green = rgb[:, :, 1]
-        blue = rgb[:, :, 2]
-        RGBint = (red << 16) + (green << 8) + blue
-        return RGBint
 
 
     def rgb2gray(self,rgb):
@@ -299,13 +315,15 @@ class Qagent(object):
 
 
     def resize(self, frame):
-        frame = imresize(frame, (84, 96))
-        # remove 12px from right, because we can go all the way left but not all the way right
-        return frame[:, 12:96]
+        frame = imresize(frame, (84, 96)) # original dim (224, 256)
+        # Make the frame square. Remove 12px from left, because we
+        # want to see as far ahead as possible while speedrunning
+        # frame = frame[:, 12:96]
+        return frame
 
 
     def _prepro(self, state):
-        "Reshape for (1, DIM) as input to Keras"
+        """Reshape for (1, DIM) as input to Keras"""
         state = self.rgb2gray(state)
         state = self.resize(state)
 
@@ -326,7 +344,9 @@ class Qagent(object):
             del self.state_hist[0]
             self.state_hist.append(state)
 
+
     def act(self, state, reward, done):
+        """ Train Q network on replayed experiences, and predict best action for current state"""
 
         # preprocess the state and save it to history
         state = self._prepro(state)
@@ -339,27 +359,34 @@ class Qagent(object):
             self.start = False
             return self.action
 
-        # save states in the replay memory
+        # save current state in the replay memory
         old_state = self.state_hist[0]
         new_state = self.state_hist[1]
         self.History.append_to_memory(old_state, new_state, self.action, reward)
 
-        # train Q network on replay memory items
-        self.Qnetwork.update(self.History)
+        ### Train Q network on replay memory items
+        if self.info["Training"]:
+            self.Qnetwork.replay(self.History)
 
         # Update Greedy epsilon
-        self.eps = np.exp(-self.eps_decay * self.iter)
+        if self.iter > self.info["Network"]["warmup"]:
+            self.eps = self.info["Agent"]["eps_start"] - (self.eps_decay * (self.iter - self.info["Network"]["warmup"]) )
 
-        # Make sure to maintain a minimum greediness
-        if self.eps < self.info["Agent"]["eps_min"]:
-            self.eps = self.info["Agent"]["eps_min"]
+            # Make sure to maintain a minimum greediness
+            if self.eps < self.info["Agent"]["eps_min"]:
+                self.eps = self.info["Agent"]["eps_min"]
 
+
+        ### Generate a new action for the current state
         # Be greedy
         if np.random.uniform(0, 1) < self.eps:
             self.action = self.action_space.sample()
 
         elif info["Agent"]["policy"] == "hardmax":
-            self.action = self.Qnetwork.best_action(new_state)
+            # returns either -1 (not enough frames yet), or the best action to do
+            self.action = self.Qnetwork.best_action(new_state, self.History)
+            if self.action == -1:
+                self.action = self.action_space.sample()
 
         elif info["Agent"]["policy"] == "softmax":
             probs = self.Qnetwork.action_probs(state)
@@ -382,7 +409,7 @@ class Qagent(object):
 class Memory:
     def __init__(self, info):
         # Memory info
-        self.memory_info = info["Predict_future_n"]
+        self.fut_n = info["Network"]["predict_future_n"]
         self.replay_info = info["Replay"]
 
         self.state_memory = []
@@ -419,37 +446,58 @@ def init_level(info):
 
     env = gym_super_mario_bros.make(info['Game'] + "-" + str(world) + "-" + str(lvl) + "-" + info['Version'])
 
-    # outdir = '/tmp/random-agent-results'
-    # env = wrappers.Monitor(env, directory=outdir, force=True) # this line disables closing
-    # env.seed(0)
     return env
 
 
-# safe deaths and iter
-def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter):
+# safe current param values of this model to a pickle file
+def save_model_params(filename, deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter):
     with open("models/" + filename + "_params", 'wb') as fp:
-        pickle.dump([deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter], fp)
+        pickle.dump([deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter], fp)
 
 
 
-# load default params, or from loaded model if defined
+# load default params, or from model file if defined
 def init_params(info, agent):
     if not info['LoadModel'] or not os.path.isfile("models/" + info['LoadModel'] + "_params"):
-        return 0, 0, [], [], agent, 0
+        return 0, 0, [], [], [], [], agent, 0
 
     # read in params from loaded model
     with open ("models/" + info['LoadModel'] + "_params", 'rb') as fp:
-        [deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter] = pickle.load(fp)
+        [deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter] = pickle.load(fp)
         agent.iter = iter
-        return deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter
+        return deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, agent, lvl_completed_counter
 
 
+def init_env(info):
+    env = init_level(info)
+    random_levels = True
+    if len(info["Worlds"]) == 1 and len(info["Levels"]) == 1:
+        random_levels = False
 
+    if info["Network"]["warmup"] < 0 or info["Network"]["input_frames"] < 1 or info["Network"]["predict_future_n"] < 1:
+        print ("Error, invalid parameter value")
+        sys.exit(1)
+
+    if not info["Training"] and not info['LoadModel']:
+        print ("Error - Can't have training mode False with no trained model selected")
+        sys.exit(1)
+
+    if info["Agent"]["type"] == 0:
+        agent = RandomAgent(env.action_space)
+    else:
+        agent = Qagent(env, info)
+
+    return env, random_levels, agent
+
+
+# Live plotter for rewards-deaths and best_Q-deaths, plotted every x deaths as avg of every x deaths
 class MarioPlotter(object):
-    def __init__(self, cum_rewards, avg_qs, deaths, plot_per_x_deaths):
+    def __init__(self, cum_rewards, avg_qs, deaths, cum_dists, avg_sps, plot_per_x_deaths):
         self.deaths = [0]
         self.cum_rewards = [0]
         self.avg_qs = [0]
+        self.cum_dists = [0]
+        self.avg_sps = [0]
 
         # initialise the plot with loaded params from a previous model, if given
         if deaths >= plot_per_x_deaths:
@@ -458,65 +506,86 @@ class MarioPlotter(object):
                     self.deaths.append(death_n)
                     # rewards are saved per death, we want to average over plot_per_x_deaths deaths
                     cum_reward = np.sum(cum_rewards[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
-                    cum_Q = np.sum(avg_qs[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
-                    self.avg_qs.append(cum_Q)
-                    # print ("Calculated cum_reward:", cum_reward)
                     self.cum_rewards.append(cum_reward)
 
-        self.fig = plt.figure()
+                    cum_Q = np.sum(avg_qs[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.avg_qs.append(cum_Q)
+
+                    cum_dist = np.sum(cum_dists[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.cum_dists.append(cum_dist)
+
+                    avg_sp = np.sum(avg_sps[((death_n) - plot_per_x_deaths):(death_n)]) / float(plot_per_x_deaths)
+                    self.avg_sps.append(avg_sp)
+
+
+        self.fig = plt.figure(figsize=(8, 6))
         self.fig.suptitle("Mario Statistics")
 
         # Make the cumulative reward plots
-        self.ax1 = self.fig.add_subplot(121)
+        self.ax1 = self.fig.add_subplot(221)
         self.ax1.set_ylabel("Average cumulative reward per " + str(plot_per_x_deaths) + " deaths" )
         self.ax1.set_xlabel("Death #")
-
-        # For live plotting
         self.nowplot, = self.ax1.plot(self.deaths,self.cum_rewards, 'r-')
 
         # For Q value
-        self.ax2 = self.fig.add_subplot(122)
+        self.ax2 = self.fig.add_subplot(222)
         self.ax2.set_ylabel("Average best Q value" )
         self.ax2.set_xlabel("Death #")
         self.ax2.yaxis.set_label_position("right")
-
-        # For live plotting
-        # self.nowplot2, = self.ax2.plot(range(1,deaths+1),self.avg_qs, 'b-')
         self.nowplot2, = self.ax2.plot(self.deaths, self.avg_qs, 'b-')
+
+        # For cum distance
+        self.ax3 = self.fig.add_subplot(223)
+        self.ax3.set_ylabel("Average distance" )
+        self.ax3.set_xlabel("Death #")
+        self.nowplot3, = self.ax3.plot(self.deaths, self.cum_dists, 'b-')
+
+        # For average speed
+        self.ax4 = self.fig.add_subplot(224)
+        self.ax4.set_ylabel("Average speed" )
+        self.ax4.set_xlabel("Death #")
+        self.ax4.yaxis.set_label_position("right")
+        self.nowplot4, = self.ax4.plot(self.deaths, self.avg_sps, 'b-')
 
         self.fig.canvas.draw()
         plt.show(block=False)
 
 
-    def __call__(self, cum_reward, avg_q, deaths):
+    def __call__(self, cum_reward, avg_q, deaths, cum_dist, avg_sp):
         """Updates the plot"""
 
         # Set params
         self.deaths.append(deaths)
         self.cum_rewards.append(cum_reward)
+        self.avg_qs.append(avg_q)
+        self.cum_dists.append(cum_dist)
+        self.avg_sps.append(avg_sp)
 
         # For cumulative reward
         self.nowplot.set_xdata(self.deaths)
         self.nowplot.set_ydata(self.cum_rewards)
-
-        # Live plot
         self.ax1.relim()
         self.ax1.autoscale_view(True,True,True)
 
-        # Q values
-        self.avg_qs.append(avg_q)
-
-        # Update input
-        # self.nowplot2.set_xdata(range(1,deaths+1))
+        # Update avg qs
         self.nowplot2.set_xdata(self.deaths)
         self.nowplot2.set_ydata(self.avg_qs)
-
-        # Live plot
         self.ax2.relim()
         self.ax2.autoscale_view(True,True,True)
 
-        self.fig.canvas.draw()
+        # Update avg qs
+        self.nowplot3.set_xdata(self.deaths)
+        self.nowplot3.set_ydata(self.cum_dists)
+        self.ax3.relim()
+        self.ax3.autoscale_view(True,True,True)
 
+        # Update avg qs
+        self.nowplot4.set_xdata(self.deaths)
+        self.nowplot4.set_ydata(self.avg_sps)
+        self.ax4.relim()
+        self.ax4.autoscale_view(True,True,True)
+
+        self.fig.canvas.draw()
 
 
 
@@ -540,98 +609,103 @@ class MarioPlotter(object):
 # total frames trained: 500k?
 # last 4 frames to seperate layer. Last framer higher resolution to other layer. Other layer for last 4 actions. Merge
 
+
 # The actual code
-N_iters_explore = 1
+N_iters_explore = 325000
 
 info = {
     "Game" : 'SuperMarioBros',
-    "Worlds" : [2], # buizen, enemies, gaten
-    "Levels" : [2], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
+    "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
+    "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
-    "Plottyplot" : True,
-    "Plot_avg_reward_nruns" : 3, # number of runs to average over to show in the plot
-    "Network": {"learning_rate": 0.99, "gamma": 0.9},
-    "Predict_future_n": {"size" : 3},
-    "Replay": {"memory": 250000, "batchsize": 4},
-    "Agent": {"type": 1, "eps_min": 0.15, "eps_decay":  2.0*np.log(10.0)/N_iters_explore,
-              "policy": "hardmax" #softmax
+    "Plottyplot" : False, # plot statistics
+    "Training" : False, # Training or demo mode. False will load a trained DQN model defined below, and execute without further training. True will train DQN model
+    "Plot_avg_reward_nruns" : 10, # number of runs to average over to show in the plot
+    "Plot_imgs_predicted_q": False, # Will plot input_frames + predicted/target Q and action after warmup
+
+    # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
+    # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 25000, "predict_future_n": 1},
+    "Replay": {"memory": 250000, "batchsize": 2}, # train on {batchsize} replay experiences per iteration
+    "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
+              "policy": "hardmax"
                },
-   "LoadModel" : False, # False = no loading, filename = loading (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
-   "SaveModel" : False, # False = no saving, filename = saving (e.g. "model_dark_easy_1-5(=worlds)_13(=levels)")
+   "LoadModel" : "final", # False = no loading, filename = loading (e.g. "test_model")
+   "SaveModel" : False, # False = no saving, filename = saving (e.g. "test_model")
 }
 
 
 
-# load random mario world/level
-env = init_level(info)
-random_levels = True
-if len(info["Worlds"]) == 1 and len(info["Levels"]) == 1:
-    init_random_lvl = False
+# load mario lvl and init agent
+env, mult_lvls, agent = init_env(info)
 
-if info["Agent"]["type"] == 0:
-    agent = RandomAgent(env.action_space)
-else:
-    agent = Qagent(env, info) # For now
-
-episode_count = 100
 reward = 0
 done = False
-lvl_completed_counter = 0
 
-# save runs for plot
+# save statistics for plot
 cum_reward = 0   # one reward
 cum_rewards = [] # save the cum rewards of all runs
 plot_per_x_deaths = info["Plot_avg_reward_nruns"] # to smooth the graph plot the average cum_reward of the last x deaths
 avg_q_values = []
 
-# SS params
-deaths, iter, avg_q_values, cum_rewards, agent, lvl_completed_counter = init_params(info, agent)
-Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, plot_per_x_deaths)
-
+deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, agent, lvl_completed_counter = init_params(info, agent)
+Plotter = False
+if info["Plottyplot"]:
+    Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, cum_dists, avg_sps, plot_per_x_deaths)
 
 try:
     while True:
-        if init_random_lvl:
+        if mult_lvls:
             env = init_level(info)
         state = env.reset()
 
         # run specific vars
         cum_reward = 0
         avg_q = [] # list of avg q values for current state
+        frames = 0
+        cum_dist = 0
 
         while True:
             action = agent.act(state, reward, done)
             state, reward, done, _ = env.step(action)
+            cum_dist += reward
+            frames += 1
             reward = calc_reward(reward, done)
             cum_reward += reward
-            avg_q += [0] if info["Agent"]["type"] == 0 else [agent.Qnetwork.best_Qvalue] # makes the plot work for both random and deep RL agent
-            print("Iter: {} | Reward: {} | Run cumulative reward: {:0.2f} | Deaths: {} | Lvl completions: {}".format(iter, reward, cum_reward, deaths, lvl_completed_counter))
+
+            # makes the plot work for both random and deep RL agent
+            if info["Agent"]["type"] == 0 or iter < info["Network"]["warmup"]:
+                avg_q += [0]
+            else:
+                avg_q += [agent.Qnetwork.best_Qvalue]
+            print("Iter: {} | Reward: {} | Dist: {} | Avg speed: {:0.2f} |  Run cumu reward: {:0.2f} | Deaths: {} | Lvl completions: {} | Eps: {:0.2f}".format(iter, reward, cum_dist, cum_dist/float(frames), cum_reward, deaths, lvl_completed_counter, agent.eps))
             iter += 1
 
             if reward <= -3:
                 print ("------DEAD!------")
                 deaths += 1
 
-                if deaths % plot_per_x_deaths == 0:
+                if deaths % plot_per_x_deaths == 0 and info["Plottyplot"]:
                     # calc avg reward from last plot_per_x_deaths saved deaths
                     avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
-                    Plotter(cum_reward, np.mean(avg_q), deaths) # Add death to plot
+                    Plotter(cum_reward, np.mean(avg_q), deaths, cum_dist, cum_dist/float(frames)) # Add death to plot
 
-            # autosave model every 1000deaths
-            if info['SaveModel'] and iter % 100000 == 0:
+            # autosave model every 100k iterations
+            if info['SaveModel'] and iter % 100000 == 0 and info["Training"]:
                 agent.save_model(info['SaveModel'] + "_" + str(iter))
-                save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
+                save_model_params(info['SaveModel'] + "_" + str(iter), deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter)
 
             # Stops the game
             if done:
                 cum_rewards.append(cum_reward)
                 avg_q_values.append(np.mean(avg_q))
-                # print ("Avg q values:", avg_q_values)
-                if init_random_lvl:
+                cum_dists.append(cum_dist)
+                avg_sps.append(cum_dist / float(frames))
+                if mult_lvls:
                     env.close()
                 if reward > -3:
                     lvl_completed_counter += 1
-                print ("Done.)
+                print ("Done.")
                 break
 
 
@@ -642,8 +716,8 @@ except Exception as e:
     print ("Unexpected error:", sys.exc_info()[0] , ": ", str(e))
 finally:
     # Close the env and write model / result info to disk
-    if info['SaveModel'] and info["Agent"]["type"] == 1:
+    if info['SaveModel'] and info["Agent"]["type"] == 1 and info["Training"]:
         agent.save_model(info['SaveModel'])
-        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, lvl_completed_counter)
+        save_model_params(info['SaveModel'], deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, lvl_completed_counter)
     if env:
         env.close()
