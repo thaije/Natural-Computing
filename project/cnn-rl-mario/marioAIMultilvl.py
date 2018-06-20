@@ -618,7 +618,7 @@ info = {
     "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
-    "Plottyplot" : True, # plot statistics
+    "Plottyplot" : False, # plot statistics
     "Training" : False, # Training or demo mode. False will load a trained DQN model defined below, and execute without further training. True will train DQN model
     "Plot_avg_reward_nruns" : 10, # number of runs to average over to show in the plot
     "Plot_imgs_predicted_q": False, # Will plot input_frames + predicted/target Q and action after warmup
