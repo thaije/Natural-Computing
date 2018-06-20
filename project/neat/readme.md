@@ -9,7 +9,8 @@
 
 # run code
 - To run the best model `python3 best_run.py genome_good.pkl` can be executed
-- run `python3 mario.py` starts a new training run that trains until the user stops it
+- run `python3 mario.py` starts a new training run that trains until the user stops it, the training progress will be logged. Models are saved when the maximum fitness has improved. Saved models can be continued to be trained by adding the filename when calling mario.py
+- parse_log.py can be run after training to visualize the training progress.
 
 
 # Levels
