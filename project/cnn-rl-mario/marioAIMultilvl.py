@@ -195,12 +195,15 @@ class Qnetwork:
 
         # plot pictures
         fig = plt.figure(figsize=(20, 8))
+        plt.gray()
         fig.suptitle("Last " + str(self.prev_states_count + 1) + " frames with predicted and target Q val for action")
         for i in range(1, self.prev_states_count + 2):
             img = np.reshape(state_with_prevs[0][i-1], (84,96))
-            fig.add_subplot(1, self.prev_states_count + 1, i)
-            plt.imshow(img)
+            ax = fig.add_subplot(1, self.prev_states_count + 1, i)
+            ax.imshow(img)
             plt.gray()
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
         plt.show()
 
 
@@ -584,10 +587,6 @@ class MarioPlotter(object):
 
         self.fig.canvas.draw()
 
-        plt.savefig('results.png')
-        sys.exit(1)
-
-
 
 
 # Google settings:
@@ -619,14 +618,14 @@ info = {
     "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
-    "Plottyplot" : False, # plot rewards/deaths and best_q/deaths
+    "Plottyplot" : False, # plot statistics
     "Training" : False, # Training or demo mode. False will load a trained DQN model defined below, and execute without further training. True will train DQN model
     "Plot_avg_reward_nruns" : 10, # number of runs to average over to show in the plot
     "Plot_imgs_predicted_q": False, # Will plot input_frames + predicted/target Q and action after warmup
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 1, "predict_future_n": 1},
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 25000, "predict_future_n": 1},
     "Replay": {"memory": 250000, "batchsize": 2}, # train on {batchsize} replay experiences per iteration
     "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax"
@@ -639,7 +638,6 @@ info = {
 
 # load mario lvl and init agent
 env, mult_lvls, agent = init_env(info)
-mult_lvls = True
 
 reward = 0
 done = False
@@ -651,7 +649,9 @@ plot_per_x_deaths = info["Plot_avg_reward_nruns"] # to smooth the graph plot the
 avg_q_values = []
 
 deaths, iter, avg_q_values, cum_rewards, cum_dists, avg_sps, agent, lvl_completed_counter = init_params(info, agent)
-Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, cum_dists, avg_sps, plot_per_x_deaths)
+Plotter = False
+if info["Plottyplot"]:
+    Plotter = MarioPlotter(cum_rewards, avg_q_values, deaths, cum_dists, avg_sps, plot_per_x_deaths)
 
 try:
     while True:
@@ -685,7 +685,7 @@ try:
                 print ("------DEAD!------")
                 deaths += 1
 
-                if deaths % plot_per_x_deaths == 0:
+                if deaths % plot_per_x_deaths == 0 and info["Plottyplot"]:
                     # calc avg reward from last plot_per_x_deaths saved deaths
                     avg_reward = np.sum(cum_rewards[((deaths) - plot_per_x_deaths):(deaths)]) / float(plot_per_x_deaths)
                     Plotter(cum_reward, np.mean(avg_q), deaths, cum_dist, cum_dist/float(frames)) # Add death to plot

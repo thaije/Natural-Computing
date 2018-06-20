@@ -8,8 +8,15 @@
 
 
 # run code
-- set parameters to needs in `marioAIMultilvl.py` around line 570 in `info` var
-- `python3 marioAIMultilvl.py`
+- By default will run an pre-trained model. See the next section to change functionality.
+- run `python3 marioAIMultilvl.py`
+
+# Settings
+There are a number of parameters in `marioAIMultilvl.py` which can change the functionality, located in the `info` variable around line 620:
+- Train a new model: set Training to True, LoadModel to False, and SaveModel to a string with the desired filename.
+- World, Levels and Version correspond to the Mario worlds, levels and versions as specified in the original Super Mario Bros Gym package: https://github.com/Kautenja/gym-super-mario-bros/blob/master/gym_super_mario_bros/smb_env.py
+- Run a model without training: set Training to False, LoadModel to the desired model.
+- See the Network, Agent and Replay parameters for tweaking variable values of these.
 
 # Todo:
 - run for 5 million iterations or so
@@ -102,9 +109,3 @@ The main drawback of this type of architecture is that a separate forward pass i
 - http://cs229.stanford.edu/proj2016/report/klein-autonomousmariowithdeepreinforcementlearning-report.pdf
 - https://github.com/aleju/mario-ai
 - https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
-
-
-
-Todo:
-- check report
-- Kai mean en std aangepast?
