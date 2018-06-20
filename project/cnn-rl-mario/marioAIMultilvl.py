@@ -226,8 +226,7 @@ class Qnetwork:
                 # predict the Q value of the current frame with last x previous frames
                 Qs_predicted = self.model.predict(state_with_prevs)
 
-                # if i == 1:
-                    # print ("Training. Action: {} {} | Reward: {} | Q target: {:0.2f} | Q predicted: {:0.2f}".format(action, self.actions_index[action], reward, Q_target, Qs_predicted[0][action]))
+                # print ("Training. Action: {} {} | Reward: {} | Q target: {:0.2f} | Q predicted: {:0.2f}".format(action, self.actions_index[action], reward, Q_target, Qs_predicted[0][action]))
 
                 # plot the x history frames with predicted Q, target Q, and action, to see what prediction is like
                 if self.plot_q_pred_img:
@@ -620,15 +619,15 @@ info = {
     "Worlds" : [1], # 1=buizen, 5=enemies, 6=gaten
     "Levels" : [1], #[1,3,4] level 2 is random shit for all worlds, e.g. water world. See readme
     "Version" : "v2",
-    "Plottyplot" : True, # plot rewards/deaths and best_q/deaths
+    "Plottyplot" : False, # plot rewards/deaths and best_q/deaths
     "Training" : False, # Training or demo mode. False will load a trained DQN model defined below, and execute without further training. True will train DQN model
     "Plot_avg_reward_nruns" : 10, # number of runs to average over to show in the plot
     "Plot_imgs_predicted_q": False, # Will plot input_frames + predicted/target Q and action after warmup
 
     # Gamma = discount_rate. Input_frames = current frame + x history frames. Warmup = don't train on replay exp untill x items are in the replay mem
     # Predict_future_n =  Look n states into future to calc Q_val. n=1 = normal Q_val calculation
-    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 25000, "predict_future_n": 1},
-    "Replay": {"memory": 250000, "batchsize": 32}, # train on {batchsize} replay experiences per iteration
+    "Network": {"learning_rate": 0.99, "gamma": 0.9, "input_frames": 4, "warmup": 1, "predict_future_n": 1},
+    "Replay": {"memory": 250000, "batchsize": 2}, # train on {batchsize} replay experiences per iteration
     "Agent": {"type": 1, "eps_start": 1.0, "eps_min": 0.1, "eps_decay": (1.0-0.15)/N_iters_explore,
               "policy": "hardmax"
                },
