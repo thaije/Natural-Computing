@@ -8,8 +8,9 @@
 
 
 # run code
-- By default will run an pre-trained model. See the next section to change functionality.
+- By default the program will run a pre-trained model. See the next section to change functionality.
 - run `python3 marioAIMultilvl.py`
+
 
 # Settings
 There are a number of parameters in `marioAIMultilvl.py` which can change the functionality, located in the `info` variable around line 620:
@@ -17,6 +18,7 @@ There are a number of parameters in `marioAIMultilvl.py` which can change the fu
 - World, Levels and Version correspond to the Mario worlds, levels and versions as specified in the original Super Mario Bros Gym package: https://github.com/Kautenja/gym-super-mario-bros/blob/master/gym_super_mario_bros/smb_env.py
 - Run a model without training: set Training to False, LoadModel to the desired model.
 - See the Network, Agent and Replay parameters for tweaking variable values of these.
+
 
 # Todo:
 - run for 5 million iterations or so
